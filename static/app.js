@@ -293,7 +293,6 @@ async function loadConfig() {
   $("cfgModel").value = state.cfg.model || "";
   $("cfgThread").value = state.cfg.thread || 4;
   $("threadVal").textContent = state.cfg.thread || 4;
-  $("cfgDual").checked = !!state.cfg.dual;
   $("cfgOutputDir").value = state.cfg.output_dir || "";
   $("langIn").value = state.cfg.lang_in || "en";
   $("langOut").value = state.cfg.lang_out || "zh";
@@ -328,7 +327,6 @@ async function saveSettings() {
     lang_out: $("langOut").value,
     model: $("cfgModel").value.trim(),
     thread: parseInt($("cfgThread").value, 10),
-    dual: $("cfgDual").checked,
     output_dir: $("cfgOutputDir").value.trim(),
   };
   if ($("cfgBaseUrl").value.trim()) payload.base_url = $("cfgBaseUrl").value.trim();
