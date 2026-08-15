@@ -82,10 +82,10 @@ MIT — Built on [pdf2zh](https://github.com/Byaidu/PDFMathTranslate) & [Argos T
 ## 界面截图
 
 ### 主界面
-![主界面](docs/main-interface.png)
+![主界面](docs/main-interface-zh.png)
 
-### 设置 — 三种翻译引擎
-![设置](docs/settings.png)
+### 设置 -- 三种翻译引擎
+![设置](docs/settings-zh.png)
 
 ## ✨ 功能
 
