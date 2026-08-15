@@ -14,6 +14,13 @@ echo       Batch PDF Translation Tool
 echo   ========================================
 echo.
 
+REM -- Kill any process using port 8377 --
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8377" ^| findstr "LISTENING" 2^>nul') do (
+    echo   [..] Stopping previous instance (PID %%a)...
+    taskkill /F /PID %%a >nul 2>&1
+    timeout /t 1 /nobreak >nul
+)
+
 REM -- Find Python --
 set "PYTHON="
 
