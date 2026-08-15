@@ -50,21 +50,22 @@ LingoPDF 是一个 **批量 PDF 翻译工具**。你可以把多个 PDF 文件�
 
 ## 🚀 快速开始（Windows）
 
-### 方式一：双击 `start.bat`
+### 方式一：双击 `start.bat`（推荐）
 
-1. 下载并解压项目
-2. 打开项目文件夹
+1. 从 GitHub 下载项目（绿色 **Code → Download ZIP**）
+2. 解压到任意位置
 3. **双击 `start.bat`**
 4. 浏览器自动打开 `http://127.0.0.1:8377`
+5. 开始翻译！
 
-> ⚠️ **需要 Python 3.11+**，如果没有请先从 [python.org](https://python.org) 安装。首次运行会自动创建虚拟环境并安装依赖，需要几分钟。
+> ✅ **无需安装 Python**——项目已内置完整运行环境（`.venv`），下载即用。
 
 ### 方式二：桌面快捷方式
 
 1. 双击项目文件夹里的 **`create_shortcut.bat`** — 在桌面创建快捷方式
 2. 以后**双击桌面的 "LingoPDF" 图标**即可启动
 
-> 两种方式都会自动检测 Python、首次运行自动安装依赖、自动打开浏览器。
+> 两种方式都会自动打开浏览器，关闭窗口即停止服务。
 
 ## 怎么翻译
 
@@ -126,21 +127,22 @@ LingoPDF is a **batch PDF translation tool**. Drag in multiple PDF files, transl
 
 ## 🚀 Quick Start (Windows)
 
-### Method 1: Double-click `start.bat`
+### Method 1: Double-click `start.bat` (Recommended)
 
-1. Download & extract the project
-2. Open the project folder
+1. Download the project from GitHub (green **Code → Download ZIP**)
+2. Extract to any location
 3. **Double-click `start.bat`**
 4. Browser opens automatically at `http://127.0.0.1:8377`
+5. Start translating!
 
-> ⚠️ **Requires Python 3.11+**. Install from [python.org](https://python.org) if needed. First run auto-creates a virtual environment and installs dependencies (takes a few minutes).
+> ✅ **No Python installation needed** — the project ships with a bundled runtime environment (`.venv`), ready to use out of the box.
 
 ### Method 2: Desktop Shortcut
 
 1. Double-click **`create_shortcut.bat`** in the project folder — creates a desktop shortcut
 2. **Double-click the "LingoPDF" icon** on your desktop to launch anytime
 
-> Both methods auto-detect Python, install dependencies on first run, and open the browser.
+> Both methods auto-open the browser. Close the window to stop the service.
 
 ## How to Translate
 
