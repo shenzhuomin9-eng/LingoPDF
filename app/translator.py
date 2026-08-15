@@ -11,7 +11,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import os
 import re
 import shutil
 import subprocess
@@ -26,6 +28,46 @@ from typing import Callable, Optional
 from .i18n import msg as _
 
 logger = logging.getLogger(__name__)
+
+# ── tqdm 静默补丁 ─────────────────────────────────────
+# pdf2zh 内部使用 tqdm 显示进度条，在 uvicorn 子线程中 tqdm 会向
+# sys.stderr 写入并 flush，Windows 上会抛 OSError [Errno 22]。
+# Web 服务中不需要终端进度条，所以把 tqdm 的默认输出流改为 devnull。
+_tqdm_patched = False
+_tqdm_patch_lock = threading.Lock()
+# 模块级 devnull 句柄，保持引用避免被 GC 关闭
+_tqdm_devnull = None
+
+
+def _silence_tqdm():
+    """把 tqdm 默认 file 从 sys.stderr 改为 devnull，避免子线程 flush 报错。"""
+    global _tqdm_patched, _tqdm_devnull
+    if _tqdm_patched:
+        return
+    with _tqdm_patch_lock:
+        if _tqdm_patched:
+            return
+        try:
+            import tqdm as _tqdm
+
+            _tqdm_devnull = open(os.devnull, "w", encoding="utf-8", errors="ignore")
+            # 通过 monkey-patch 修改 tqdm 类的默认 file 参数
+            _orig_init = _tqdm.tqdm.__init__
+
+            def _patched_init(self, *args, **kwargs):
+                if "file" not in kwargs:
+                    # tqdm 的 file 参数是 keyword-only，在 **kwargs 中
+                    kwargs["file"] = _tqdm_devnull
+                return _orig_init(self, *args, **kwargs)
+
+            _tqdm.tqdm.__init__ = _patched_init
+            logger.debug("tqdm 输出已重定向到 devnull")
+        except Exception as e:
+            logger.warning("tqdm 静默补丁失败: %s", e)
+        _tqdm_patched = True
+
+
+_silence_tqdm()
 
 # ── 数据结构 ────────────────────────────────────────────
 
@@ -341,6 +383,157 @@ def convert_to_pdf(source: Path, soffice: Path) -> Optional[Path]:
         return None
 
 
+# ── 源语言检测 ──────────────────────────────────────────
+
+
+def detect_pdf_lang(pdf_path: Path, sample_pages: int = 3) -> str | None:
+    """粗略检测 PDF 的主要语言。
+
+    通过提取前几页文本，统计 CJK / 西里尔 / 拉丁字符比例来判断。
+    返回语言代码 ('zh', 'ja', 'ko', 'ru', 'en') 或 None（无法判断）。
+    如果文本提取失败（自定义字体），退回到分析嵌入字体名称。
+    """
+    try:
+        import fitz
+
+        doc = fitz.open(str(pdf_path))
+        texts = []
+        for i in range(min(sample_pages, len(doc))):
+            page = doc[i]
+            t1 = page.get_text("text")
+            if t1.strip():
+                texts.append(t1)
+            else:
+                blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]
+                for block in blocks:
+                    if "lines" in block:
+                        for line in block["lines"]:
+                            for span in line["spans"]:
+                                if "text" in span:
+                                    texts.append(span["text"])
+            t3 = page.get_text()
+            if t3.strip() and t3 not in texts:
+                texts.append(t3)
+
+        # 如果文本提取成功，分析文本内容
+        if texts and any(t.strip() for t in texts):
+            doc.close()
+            text = "\n".join(texts)
+            return _classify_text(text)
+
+        # 文本提取失败，通过嵌入字体 + raw bytes 判断
+        all_fonts = set()
+        for i in range(min(sample_pages, len(doc))):
+            try:
+                fonts = doc[i].get_fonts()
+                for f in fonts:
+                    all_fonts.add(f)
+            except Exception:
+                pass
+        doc.close()
+
+        if not all_fonts:
+            return None
+
+        has_chinese_font = any(
+            k in str(f).lower() for f in all_fonts
+            for k in ("heiti", "songti", "ming", "yahei", "kai", "fang",
+                      "source han", "noto cjk", "noto sans cjk", "ms heisi",
+                      "ms song", "stsong", "stcaiyun", "stkaiti", "stxinwei",
+                      "china", "cjk", "gb2312", "gbk", "gb18030", "unigb")
+        )
+        has_japanese_font = any(
+            k in str(f).lower() for f in all_fonts
+            for k in ("gothic", "mincho", "hyo", "ygothic", "yumin", "hannom",
+                      "source hira", "source mincho", "ms gothic", "ms mincho",
+                      "ipap", "sns", "prt")
+        )
+        has_korean_font = any(
+            k in str(f).lower() for f in all_fonts
+            for k in ("sinmo", "batang", "gungsuh", "hwang", "tmon", "malgun",
+                      "hygothic", "hymincho", "h2")
+        )
+
+        # 字体判断
+        if has_chinese_font:
+            return "zh"
+        if has_japanese_font:
+            return "ja"
+        if has_korean_font:
+            return "ko"
+
+        # 最后手段：raw bytes 中搜索 CJK 字符（处理 UTF-16 编码的 PDF）
+        raw_bytes = Path(str(pdf_path)).read_bytes()
+        byte_text = raw_bytes.decode("utf-8", errors="ignore")
+        counts = {}
+        for ch in byte_text:
+            code = ord(ch)
+            if 0x4E00 <= code <= 0x9FFF:
+                counts["zh"] = counts.get("zh", 0) + 1
+            elif 0x3040 <= code <= 0x30FF:
+                counts["ja"] = counts.get("ja", 0) + 1
+            elif 0xAC00 <= code <= 0xD7AF:
+                counts["ko"] = counts.get("ko", 0) + 1
+            elif 0x0400 <= code <= 0x04FF:
+                counts["ru"] = counts.get("ru", 0) + 1
+
+        if counts.get("zh", 0) > 10:
+            return "zh"
+        if counts.get("ja", 0) > 5:
+            return "ja"
+        if counts.get("ko", 0) > 5:
+            return "ko"
+        if counts.get("ru", 0) > 5:
+            return "ru"
+
+        return None
+
+    except Exception:
+        return None
+
+
+def _classify_text(text: str) -> str | None:
+    """统计文本中各文字系统字符比例，返回最可能的语言代码。"""
+    cjk_cn = 0
+    kana = 0
+    hangul = 0
+    cyrillic = 0
+    latin = 0
+
+    for ch in text:
+        code = ord(ch)
+        if 0x4E00 <= code <= 0x9FFF:
+            cjk_cn += 1
+        elif 0x3400 <= code <= 0x4DBF:
+            cjk_cn += 1
+        elif 0x20000 <= code <= 0x2A6DF:
+            cjk_cn += 1
+        elif 0x3040 <= code <= 0x30FF:
+            kana += 1
+        elif 0xAC00 <= code <= 0xD7AF:
+            hangul += 1
+        elif 0x0400 <= code <= 0x04FF:
+            cyrillic += 1
+        elif (0x0041 <= code <= 0x005A) or (0x0061 <= code <= 0x007A):
+            latin += 1
+
+    total = cjk_cn + kana + hangul + cyrillic + latin
+    if total == 0:
+        return None
+
+    if kana > 0 and kana / total > 0.05:
+        return "ja"
+    if hangul / total > 0.15:
+        return "ko"
+    if cyrillic / total > 0.15:
+        return "ru"
+    if cjk_cn / total > 0.15:
+        return "zh"
+    if latin / total > 0.3:
+        return "en"
+    return None
+
+
 # ── 核心翻译 ────────────────────────────────────────────
 
 
@@ -360,8 +553,11 @@ def translate_pdf(
     dual=True 时另加 <stem>_dual.pdf（左右/上下双语对照）。
     """
 
-    def _log(msg: str):
-        logger.info(msg)
+    def _log(msg: str, level: str = "info"):
+        if level == "warn":
+            logger.warning(msg)
+        else:
+            logger.info(msg)
         if on_log:
             on_log(msg)
 
@@ -380,6 +576,26 @@ def translate_pdf(
             "argos": "Local Offline" if lang == "en" else "本地离线模型",
         }
         _log(_("start_translate", engine=engine_names.get(opts.engine, opts.engine), name=source_pdf.name))
+
+        # 源语言检测：如果 PDF 实际语言与用户选择的源语言不符，发出警告
+        detected = detect_pdf_lang(source_pdf)
+        if detected and detected != opts.lang_in:
+            # 特别警告：源语言=英文但文件实际是中文/日文/韩文等
+            lang_names = {
+                "en": "English" if lang == "en" else "英语",
+                "zh": "Chinese" if lang == "en" else "中文",
+                "ja": "Japanese" if lang == "en" else "日语",
+                "ko": "Korean" if lang == "en" else "韩语",
+                "ru": "Russian" if lang == "en" else "俄语",
+            }
+            det_name = lang_names.get(detected, detected)
+            src_name = lang_names.get(opts.lang_in, opts.lang_in)
+            tgt_name = lang_names.get(opts.lang_out, opts.lang_out)
+            if detected == opts.lang_out:
+                # 源语言与目标语言相同（如文件是中文，选了中文→中文）
+                _log(_("lang_mismatch_same", detected=det_name, target=tgt_name), "warn")
+            else:
+                _log(_("lang_mismatch", detected=det_name, source=src_name), "warn")
 
         _apply_tencentcloud_patch()
         from pdf2zh import translate_stream

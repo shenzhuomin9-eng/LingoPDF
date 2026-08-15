@@ -8,10 +8,11 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import tempfile
 import zipfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -243,6 +244,69 @@ def download_file(job_id: str, file_index: int, out_index: int):
     except IndexError:
         raise HTTPException(404, "文件不存在")
     return FileResponse(out["path"], filename=out["name"], media_type="application/pdf")
+
+
+# ── 文件语言检测 ─────────────────────────────────────────
+
+
+@app.post("/api/detect-lang")
+async def detect_lang_endpoint(
+    job_id: str = Form(None),
+    file_index: str = Form(None),
+    file: UploadFile = File(None),
+):
+    """检测 PDF 文件的源语言。接受两种模式：
+    1. job_id + file_index → 检测已上传/saved 的文件
+    2. file blob（直接上传）→ 检测临时文件
+    """
+    from .translator import detect_pdf_lang
+
+    lang_names = {
+        "en": "English",
+        "zh": "Chinese",
+        "ja": "Japanese",
+        "ko": "Korean",
+        "ru": "Russian",
+    }
+
+    # 模式 1：检测已上传文件
+    if job_id and file_index is not None:
+        job = manager.get(job_id)
+        if not job:
+            raise HTTPException(404, "Job not found")
+        try:
+            idx = int(file_index)
+        except (ValueError, TypeError):
+            raise HTTPException(400, "Invalid file index")
+        
+        if idx < 0 or idx >= len(job.files):
+            raise HTTPException(400, "Invalid file index")
+        
+        upload_path = job.files[idx].upload_path
+        detected = detect_pdf_lang(upload_path)
+        return {
+            "detected": detected,
+            "detected_name": lang_names.get(detected, detected) if detected else "Unidentified",
+        }
+
+    # 模式 2：直接上传文件 blob
+    if file:
+        if file.content_type and 'pdf' not in file.content_type.lower():
+            raise HTTPException(400, "Only PDF files are supported")
+        
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = Path(tmp.name)
+        
+        detected = detect_pdf_lang(tmp_path)
+        tmp_path.unlink(missing_ok=True)
+        return {
+            "detected": detected,
+            "detected_name": lang_names.get(detected, detected) if detected else "Unidentified",
+        }
+
+    raise HTTPException(400, "Must provide either job_id+file_index or file")
 
 
 # 静态前端（放最后，避免吞掉 /api）

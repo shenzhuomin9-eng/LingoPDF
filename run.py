@@ -6,7 +6,13 @@
     python run.py 9000       # 指定端口
 """
 
+import asyncio
 import sys
+
+# Windows 上必须用 SelectorEventLoop
+# ProactorEventLoop 会导致子线程中 translate_stream 报 [Errno 22]
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 import uvicorn
 

@@ -28,9 +28,11 @@ const I18N = {
     clear: "Clear",
     downloadAll: "⬇ Download All",
     start: "▶ Start Translation",
+    uploading: "⏳ Uploading...",
     cancel: "■ Cancel",
     fileList: "File List",
     ready: "Ready",
+    detectedLang: "Source: ",
     runLog: "Run Log",
     collapse: "Collapse",
     expand: "Expand",
@@ -47,8 +49,11 @@ const I18N = {
     engineLocalDesc: "Argos local model<br>Works offline · Medium quality",
     apiBaseUrl: "API Base URL",
     apiKeyHint: "(stored locally only, never uploaded)",
+    apiKeySaved: "Saved (type a new value to overwrite)",
     modelName: "Model Name",
     testConn: "🔌 Test Connection",
+    testing: "⏳ Testing...",
+    connecting: "Connecting...",
     argosChecking: "Checking local model status...",
     argosDownload: "⬇ Download en→zh model (~250MB, one-time)",
     argosHint: "Once installed, the local model runs fully offline. Quality is lower than API but sufficient for everyday documents.",
@@ -62,6 +67,8 @@ const I18N = {
     saveSettings: "Save Settings",
     // 状态
     pending: "Pending",
+    remove: "Remove",
+    filesUnit: "files",
     converting: "Converting…",
     translating: "Translating…",
     done: "Done",
@@ -88,6 +95,7 @@ const I18N = {
     argosDownloadHint: "Click the button below to download (internet needed once)",
     downloading: "⏳ Downloading, please wait...",
     uploadFailed: (m) => m,
+    detecting: "Detecting",
     // 进度
     translating2: (d, t) => `Translating ${d}/${t}`,
     finished: (ok, fail, elapsed) => `Done · ✅ ${ok} ok / ❌ ${fail} failed · ${elapsed}`,
@@ -117,9 +125,11 @@ const I18N = {
     clear: "清空",
     downloadAll: "⬇ 全部下载",
     start: "▶ 开始翻译",
+    uploading: "⏳ 上传中...",
     cancel: "■ 取消",
     fileList: "文件列表",
     ready: "就绪",
+    detectedLang: "源语言：",
     runLog: "运行日志",
     collapse: "收起",
     expand: "展开",
@@ -136,8 +146,11 @@ const I18N = {
     engineLocalDesc: "Argos 本地模型<br>断网可用 · 质量中等",
     apiBaseUrl: "API Base URL",
     apiKeyHint: "（仅保存在本机，不会上传到任何地方）",
+    apiKeySaved: "已保存（输入新值可覆盖）",
     modelName: "模型名称",
     testConn: "🔌 测试连接",
+    testing: "⏳ 测试中...",
+    connecting: "正在连接...",
     argosChecking: "检查本地模型状态...",
     argosDownload: "⬇ 下载 en→zh 模型（约 250MB，仅一次）",
     argosHint: "本地模型安装后完全离线运行，不再需要网络。质量不如 API，但日常文档够用。",
@@ -150,6 +163,8 @@ const I18N = {
     resetDefaults: "恢复默认",
     saveSettings: "保存设置",
     pending: "等待中",
+    remove: "移除",
+    filesUnit: "个",
     converting: "转 PDF…",
     translating: "翻译中…",
     done: "完成",
@@ -174,6 +189,7 @@ const I18N = {
     argosDownloadHint: "点击下方按钮下载（仅首次需要联网）",
     downloading: "⏳ 下载中，请稍候...",
     uploadFailed: (m) => m,
+    detecting: "检测中",
     translating2: (d, t) => `翻译中 ${d}/${t}`,
     finished: (ok, fail, elapsed) => `完成 · ✅ ${ok} 成功 / ❌ ${fail} 失败 · ${elapsed}`,
     jobEnded: (ok, fail) => `—— 任务结束：✅ ${ok} / ❌ ${fail} ——`,
@@ -203,19 +219,25 @@ function applyI18n() {
       const key = el.getAttribute("data-i18n");
       const val = dict[key] || I18N.en[key] || key;
       if (el.childElementCount > 0) {
-        // 元素有子元素（如 label 包裹 select）——只替换第一个文本节点
-        let firstText = null;
-        for (const node of el.childNodes) {
-          if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-            firstText = node;
-            break;
-          }
-        }
-        if (firstText) {
-          // 保留换行和缩进格式
-          firstText.textContent = val;
+        // i18n 值含 HTML 标签（如 <br>）——说明该元素的完整内容由 i18n 提供，
+        // 直接用 innerHTML 替换全部内容（引擎描述卡片属于此类）
+        if (/<[a-z/][a-z0-9]*>/i.test(val)) {
+          el.innerHTML = val;
         } else {
-          el.insertBefore(document.createTextNode(val), el.firstChild);
+          // 元素有子元素（如 label 包裹 select）——只替换第一个文本节点
+          let firstText = null;
+          for (const node of el.childNodes) {
+            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+              firstText = node;
+              break;
+            }
+          }
+          if (firstText) {
+            // 保留与子元素之间的空格分隔
+            firstText.textContent = val + " ";
+          } else {
+            el.insertBefore(document.createTextNode(val), el.firstChild);
+          }
         }
       } else {
         el.innerHTML = val;
@@ -289,7 +311,7 @@ async function loadConfig() {
   $("cfgBaseUrl").value = state.cfg.base_url || "";
   $("cfgApiKey").value = state.cfg.api_key || "";
   $("cfgApiKey").dataset.masked = state.cfg.has_api_key ? "1" : "";
-  $("cfgApiKey").placeholder = state.cfg.has_api_key ? "已保存（输入新值可覆盖）" : "sk-...";
+  $("cfgApiKey").placeholder = state.cfg.has_api_key ? t("apiKeySaved") : "sk-...";
   $("cfgModel").value = state.cfg.model || "";
   $("cfgThread").value = state.cfg.thread || 4;
   $("threadVal").textContent = state.cfg.thread || 4;
@@ -398,10 +420,10 @@ async function testConnection() {
   const btn = $("btnTestConn");
   const msg = $("testConnMsg");
   btn.disabled = true;
-  btn.textContent = "⏳ 测试中...";
+  btn.textContent = t("testing");
   msg.hidden = false;
   msg.className = "test-msg";
-  msg.textContent = "正在连接...";
+  msg.textContent = t("connecting");
   try {
     const engine = document.querySelector(".engine-card.active").dataset.engine;
     const payload = {
@@ -427,7 +449,7 @@ async function testConnection() {
     msg.textContent = "✗ " + e.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = "🔌 测试连接";
+    btn.textContent = t("testConn");
   }
 }
 
@@ -440,10 +462,59 @@ function addFiles(fileList) {
     const ext = "." + f.name.split(".").pop().toLowerCase();
     if (!ok.includes(ext)) { skipped++; continue; }
     if (state.files.some((x) => x.name === f.name && x.size === f.size)) continue;
+    // 在原始 File 对象上挂自定义属性，切勿用展开符 {...f} 复制 File
+    // （会丢失 File 的内部 blob 数据与原型，导致 FormData/上传失效）
+    f.detectedLang = null;
+    f.detectStatus = "pending";
     state.files.push(f);
   }
   if (skipped) toast(t("skippedFiles", skipped), "bad");
   renderFiles();
+  // 延迟启动语言检测，避免阻塞 UI
+  setTimeout(() => detectAllFilesLanguage(), 200);
+}
+
+/* ── 文件语言检测 ─────────────────────────── */
+
+const LANG_FLAGS = {
+  en: "🇬🇧", zh: "🇨🇳", ja: "🇯🇵", ko: "🇰🇷", ru: "🇷🇺",
+};
+
+async function detectFileLanguage(file, index) {
+  try {
+    state.files[index].detectStatus = 'detecting';
+    
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    
+    const response = await fetch('/api/detect-lang', {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      state.files[index].detectedLang = result;
+      state.files[index].detectStatus = 'done';
+    } else {
+      console.error('Detect failed:', response.status);
+      state.files[index].detectStatus = 'failed';
+    }
+  } catch (err) {
+    console.error('Detect error:', err);
+    state.files[index].detectStatus = 'failed';
+  } finally {
+    renderFiles();
+  }
+}
+
+async function detectAllFilesLanguage() {
+  for (let i = 0; i < state.files.length; i++) {
+    const file = state.files[i];
+    if (file instanceof File && !file.detectedLang) {
+      detectFileLanguage(file, i); // 不await，并行检测
+    }
+  }
 }
 
 function renderFiles() {
@@ -453,18 +524,27 @@ function renderFiles() {
     const row = document.createElement("div");
     row.className = "file-row";
     row.dataset.idx = i;
+    // 语言徽章 — 仅显示已检测的语言或检测中状态
+    let langBadge = "";
+    if (f.detectStatus === 'detecting') {
+      langBadge = `&nbsp;<span class="detected-lang-badge muted">⟳ 检测中</span>`;
+    } else if (f.detectedLang && f.detectedLang.detected) {
+      const flag = LANG_FLAGS[f.detectedLang.detected] || "🌐";
+      const langName = f.detectedLang.detected_name || f.detectedLang.detected;
+      langBadge = `&nbsp;<span class="detected-lang-badge">${flag}${langName}</span>`;
+    }
     row.innerHTML = `
-      <span class="file-icon">${f.name.toLowerCase().endsWith(".pdf") ? "📕" : "📘"}</span>
+      <span class="file-icon">📕</span>
       <div class="file-info">
-        <div class="file-name">${escapeHtml(f.name)}</div>
+        <div class="file-name">${escapeHtml(f.name)}${langBadge}</div>
         <div class="file-meta">${fmtSize(f.size)}</div>
       </div>
-      <span class="status-chip status-pending">等待中</span>
-      <button class="btn-icon" title="移除" data-rm="${i}">✕</button>`;
+      <span class="status-chip status-pending">${t("pending")}</span>
+      <button class="btn-icon" title="${t("remove")}" data-rm="${i}">✕</button>`;
     list.appendChild(row);
   });
   $("filesCard").hidden = state.files.length === 0;
-  $("fileCount").textContent = state.files.length ? `· ${state.files.length} 个` : "";
+  $("fileCount").textContent = state.files.length ? `· ${state.files.length} ${t("filesUnit")}` : "";
   updateStartButton();
   $("btnClear").disabled = state.files.length === 0;
 }
@@ -479,13 +559,36 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/* ── 源语言检测 ─────────────────────────── */
+
+const LANG_DISPLAY = {
+  en: "🇬🇧 English",
+  zh: "🇨🇳 Chinese",
+  ja: "🇯🇵 Japanese",
+  ko: "🇰🇷 Korean",
+  ru: "🇷🇺 Russian",
+};
+
+async function detectLang(fileName, fileSize) {
+  try {
+    const fd = new FormData();
+    const file = new Blob([new ArrayBuffer(0)], { type: "application/octet-stream" });
+    // We need the actual file blob, not empty
+    // Let's try the API with the uploaded pdf path instead
+    return null; // will be detected after upload via job_id
+  } catch (e) {
+    logger.error("[detectLang] error:", e);
+    return null;
+  }
+}
+
 /* ── 翻译任务 ─────────────────────────── */
 
 async function startTranslation() {
   if (!state.files.length) return;
   const btn = $("btnStart");
   btn.disabled = true;
-  btn.textContent = "⏳ 上传中...";
+  btn.textContent = t("uploading");
 
   // 保存当前语言方向
   await api("/api/config", {
@@ -513,7 +616,7 @@ async function startTranslation() {
   } catch (e) {
     toast(e.message, "bad");
     btn.disabled = false;
-    btn.textContent = "▶ 开始翻译";
+    btn.textContent = t("start");
   }
 }
 
@@ -524,7 +627,7 @@ function setControlsDuringJob(running) {
   $("langOut").disabled = running;
   $("fileInput").disabled = running;
   if (!running) {
-    $("btnStart").textContent = "▶ 开始翻译";
+    $("btnStart").textContent = t("start");
     updateStartButton();
   }
 }
@@ -726,6 +829,8 @@ function bindEvents() {
       state.uiLang = e.target.value;
       try { localStorage.setItem("linguapdf_lang", state.uiLang); } catch {}
       applyI18n();
+      // 更新动态 placeholder（applyI18n 不处理 #cfgApiKey 的动态 placeholder）
+      $("cfgApiKey").placeholder = state.cfg.has_api_key ? t("apiKeySaved") : "sk-...";
       // 清空已有日志面板（旧日志是旧语言生成的，保留会混乱）
       const panel = $("logPanel");
       if (panel) panel.innerHTML = "";

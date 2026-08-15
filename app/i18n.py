@@ -27,6 +27,8 @@ _MSGS = {
         "translate_error": "Translation error: {error}",
         "cancel_sent": "Job canceled by user",
         "cancelled": "Canceled",
+        "lang_mismatch": "⚠ Detected file language is {detected}, but source language is set to {source}. Translation may produce poor results.",
+        "lang_mismatch_same": "⚠ File appears to be already in {detected}, same as target language {target}. The file may already be translated — re-translating can cause garbled output.",
     },
     "zh": {
         "job_start": "任务开始：{n} 个文件",
@@ -48,6 +50,8 @@ _MSGS = {
         "translate_error": "翻译出错: {error}",
         "cancel_sent": "用户取消了任务",
         "cancelled": "已取消",
+        "lang_mismatch": "⚠ 检测到文件语言为{detected}，但源语言设置为{source}，翻译效果可能不佳。",
+        "lang_mismatch_same": "⚠ 文件似乎是{detected}，与目标语言{target}相同。该文件可能已经是翻译版——重复翻译可能导致乱码。",
     },
 }
 
