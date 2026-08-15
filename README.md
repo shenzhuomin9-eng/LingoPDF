@@ -57,6 +57,8 @@ LingoPDF 是一个 **批量 PDF 翻译工具**。你可以把多个 PDF 文件�
 3. **双击 `start.bat`**
 4. 浏览器自动打开 `http://127.0.0.1:8377`
 
+> ⚠️ **需要 Python 3.11+**，如果没有请先从 [python.org](https://python.org) 安装。首次运行会自动创建虚拟环境并安装依赖，需要几分钟。
+
 ### 方式二：桌面快捷方式
 
 1. 双击项目文件夹里的 **`create_shortcut.bat`** — 在桌面创建快捷方式
@@ -130,6 +132,8 @@ LingoPDF is a **batch PDF translation tool**. Drag in multiple PDF files, transl
 2. Open the project folder
 3. **Double-click `start.bat`**
 4. Browser opens automatically at `http://127.0.0.1:8377`
+
+> ⚠️ **Requires Python 3.11+**. Install from [python.org](https://python.org) if needed. First run auto-creates a virtual environment and installs dependencies (takes a few minutes).
 
 ### Method 2: Desktop Shortcut
 

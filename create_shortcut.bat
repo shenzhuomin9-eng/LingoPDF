@@ -20,4 +20,4 @@ if exist "%USERPROFILE%\Desktop\LingoPDF.lnk" (
 )
 
 echo.
-timeout /t 3 /nobreak >nul 2>&1
+timeout /t 3 /nobreak >nul 2>&1

@@ -18,19 +18,52 @@ if not errorlevel 1 (
     timeout /t 2 /nobreak >nul 2>&1
 )
 
-REM -- Find Python --
-python --version >nul 2>&1
+REM -- Find Python 3.11+ --
+set "PYBIN="
+
+REM Try py launcher first (usually has latest Python)
+py -3.11 --version >nul 2>&1
 if not errorlevel 1 (
-    set "PYBIN=python"
-    echo   [OK] Python: python
+    set "PYBIN=py -3.11"
+    echo   [OK] Python found via py launcher
     goto :check_venv
 )
 
-py -3 --version >nul 2>&1
+py -3.12 --version >nul 2>&1
 if not errorlevel 1 (
-    set "PYBIN=py -3"
-    echo   [OK] Python: py -3
+    set "PYBIN=py -3.12"
+    echo   [OK] Python found via py launcher
     goto :check_venv
+)
+
+py -3.13 --version >nul 2>&1
+if not errorlevel 1 (
+    set "PYBIN=py -3.13"
+    echo   [OK] Python found via py launcher
+    goto :check_venv
+)
+
+REM Try python command - check if version is 3.11+
+python -c "import sys; exit(0 if sys.version_info >= (3, 11) else 1)" >nul 2>&1
+if not errorlevel 1 (
+    set "PYBIN=python"
+    echo   [OK] Python 3.11+ found
+    goto :check_venv
+)
+
+REM Python found but too old
+python --version >nul 2>&1
+if not errorlevel 1 (
+    echo   [ERROR] Python version is too old!
+    echo   LingoPDF requires Python 3.11 or later.
+    echo   Your Python version:
+    python --version
+    echo.
+    echo   Please install Python 3.11+ from https://python.org
+    echo   Then run start.bat again.
+    echo.
+    pause
+    exit /b 1
 )
 
 echo   [ERROR] Python not found!
@@ -43,7 +76,7 @@ exit /b 1
 
 REM -- Create venv if not exists --
 if not exist ".venv\Scripts\python.exe" (
-    echo   [..] Creating virtual environment first run only...
+    echo   [..] Creating virtual environment (first run only)...
     %PYBIN% -m venv .venv
     if not exist ".venv\Scripts\python.exe" (
         echo   [ERROR] Failed to create virtual environment.
