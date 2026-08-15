@@ -430,6 +430,7 @@ def translate_pdf(
         elapsed = time.monotonic() - t0
         error_msg = f"{type(e).__name__}: {e}"
         logger.error("Translation failed: %s — %s", source_pdf.name, error_msg, exc_info=True)
+        import traceback as _tb
         _log(_("translate_error", error=error_msg))
-        _log(f"翻译出错: {error_msg}")
+        _log(_tb.format_exc().split('\n')[-3].strip() if len(_tb.format_exc().split('\n')) > 3 else error_msg)
         return TranslateResult(elapsed=elapsed, error=error_msg)

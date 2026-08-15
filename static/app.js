@@ -622,7 +622,11 @@ function appendLogs(logs) {
     state.logSeq = Math.max(state.logSeq, l.seq);
     const line = document.createElement("div");
     line.className = "log-line " + l.level;
-    const ts = new Date(l.ts * 1000).toLocaleTimeString("zh-CN", { hour12: false });
+    const tsNum = Number(l.ts);
+    const ts = (tsNum > 0 ? new Date(tsNum * 1000) : new Date()).toLocaleTimeString(
+      state.uiLang === "zh" ? "zh-CN" : "en-US",
+      { hour12: false }
+    );
     line.innerHTML = `<span class="log-ts">${ts}</span><span class="log-msg">${escapeHtml(l.msg)}</span>`;
     panel.appendChild(line);
   });
@@ -700,7 +704,7 @@ function bindEvents() {
     await api("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ base_url: "", api_key: "", model: "deepseek-chat", engine: "openai", thread: 4, dual: false, output_dir: "", ui_lang: "en" }),
+      body: JSON.stringify({ base_url: "", api_key: "", model: "deepseek-chat", engine: "google", thread: 4, dual: false, output_dir: "", ui_lang: "en" }),
     });
     await loadConfig();
     toast(t("resetDone"), "ok");
@@ -760,24 +764,21 @@ function bindEvents() {
 async function resumeLatestJob() {
   try {
     const jobs = await api("/api/jobs");
-    const latest = jobs.find((j) => Date.now() / 1000 - j.created_at < 7200);
+    // 只恢复正在运行的任务，已完成的不再显示
+    const latest = jobs.find((j) =>
+      ["queued", "running"].includes(j.status) &&
+      Date.now() / 1000 - j.created_at < 7200
+    );
     if (!latest) return;
     const job = await api(`/api/jobs/${latest.id}`);
-    // 用服务端数据重建文件行（非 File 对象，仅用于展示/下载）
     state.files = job.files.map((f) => ({ name: f.name, size: f.size }));
     state.jobId = job.id;
     state.logSeq = 0;
     renderFiles();
     $("filesCard").hidden = false;
     $("logCard").hidden = false;
-    const running = ["queued", "running"].includes(job.status);
-    setControlsDuringJob(running);
-    if (running) {
-      startPolling();
-    } else {
-      pollStatus(); // 渲染最终状态与下载按钮
-      stopPolling();
-    }
+    setControlsDuringJob(true);
+    startPolling();
   } catch {
     /* 静默失败 */
   }
