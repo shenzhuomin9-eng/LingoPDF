@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
+from .i18n import msg as _
+
 logger = logging.getLogger(__name__)
 
 # ── 数据结构 ────────────────────────────────────────────
@@ -136,12 +138,12 @@ def get_layout_model(on_log: Optional[Callable[[str], None]] = None):
     with _onnx_lock:
         if _onnx_model is None:
             if on_log:
-                on_log("加载版面检测模型（首次约 5-10 秒）...")
+                on_log(_("loading_model"))
             from pdf2zh.doclayout import OnnxModel
 
             _onnx_model = OnnxModel.load_available()
             if on_log:
-                on_log("版面模型加载完成")
+                on_log(_("model_loaded"))
         return _onnx_model
 
 
@@ -365,16 +367,18 @@ def translate_pdf(
     t0 = time.monotonic()
     try:
         if opts.engine == "openai" and (not opts.base_url or not opts.api_key):
-            return TranslateResult(error="未配置 API base_url 或 api_key")
+            return TranslateResult(error="API base_url or api_key not configured")
         if not source_pdf.exists():
-            return TranslateResult(error=f"源文件不存在: {source_pdf}")
+            return TranslateResult(error=f"Source file not found: {source_pdf}")
 
-        engine_label = {
-            "openai": f"API（{opts.model}）",
-            "google": "Google 免费接口",
-            "argos": "本地离线模型",
-        }.get(opts.engine, opts.engine)
-        _log(f"开始翻译（引擎: {engine_label}）: {source_pdf.name}")
+        from .i18n import get_lang
+        lang = get_lang()
+        engine_names = {
+            "openai": f"API ({opts.model})" if lang == "en" else f"API（{opts.model}）",
+            "google": "Google Free" if lang == "en" else "Google 免费接口",
+            "argos": "Local Offline" if lang == "en" else "本地离线模型",
+        }
+        _log(_("start_translate", engine=engine_names.get(opts.engine, opts.engine), name=source_pdf.name))
 
         _apply_tencentcloud_patch()
         from pdf2zh import translate_stream
@@ -419,14 +423,13 @@ def translate_pdf(
             files.append({"name": dual_path.name, "path": str(dual_path)})
 
         elapsed = time.monotonic() - t0
-        _log(
-            f"翻译完成: {source_pdf.name} → {len(files)} 个文件 ({elapsed:.1f}s)"
-        )
+        _log(_("translate_done", name=source_pdf.name, n=len(files), elapsed=f"{elapsed:.1f}"))
         return TranslateResult(files=files, elapsed=elapsed)
 
     except Exception as e:
         elapsed = time.monotonic() - t0
         error_msg = f"{type(e).__name__}: {e}"
-        logger.error("翻译失败: %s — %s", source_pdf.name, error_msg, exc_info=True)
+        logger.error("Translation failed: %s — %s", source_pdf.name, error_msg, exc_info=True)
+        _log(_("translate_error", error=error_msg))
         _log(f"翻译出错: {error_msg}")
         return TranslateResult(elapsed=elapsed, error=error_msg)

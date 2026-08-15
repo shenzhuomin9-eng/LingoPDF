@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import config as cfg
+from .i18n import msg as _
 from .translator import (
     TranslateOptions,
     convert_to_pdf,
@@ -133,7 +134,7 @@ class JobManager:
         job = self._jobs.get(job_id)
         if job and job.status in ("queued", "running"):
             job.status = "canceled"
-            job.add_log("用户取消了任务", "warn")
+            job.add_log(_("cancel_sent"), "warn")
             return True
         return False
 
@@ -149,7 +150,7 @@ class JobManager:
 
         job.status = "running"
         job.started_at = time.time()
-        job.add_log(f"任务开始：{len(job.files)} 个文件")
+        job.add_log(_("job_start", n=len(job.files)))
 
         # 非 PDF 文件需要 LibreOffice
         need_convert = any(
@@ -159,7 +160,7 @@ class JobManager:
         if need_convert:
             soffice = find_libreoffice(cfg.load_config().get("libreoffice_path", ""))
             if soffice is None:
-                job.add_log("⚠ 未检测到 LibreOffice，非 PDF 文件将跳过", "warn")
+                job.add_log(_("no_libreoffice"), "warn")
 
         # 输出目录：空 = 源文件原路径；否则用指定目录
         cfg_output_dir = cfg.load_config().get("output_dir", "")
@@ -176,14 +177,14 @@ class JobManager:
                 if pdf_source.suffix.lower() != ".pdf":
                     if soffice is None:
                         jf.status = "failed"
-                        jf.error = "需要 LibreOffice 才能转换该格式"
+                        jf.error = _("no_libreoffice_err")
                         continue
                     jf.status = "converting"
-                    job.add_log(f"[{jf.name}] 转换为 PDF...")
+                    job.add_log(_("converting", name=jf.name))
                     pdf_source = convert_to_pdf(pdf_source, soffice)
                     if pdf_source is None:
                         jf.status = "failed"
-                        jf.error = "LibreOffice 转 PDF 失败"
+                        jf.error = _("convert_failed")
                         continue
 
                 jf.status = "translating"
@@ -218,7 +219,7 @@ class JobManager:
         job.finished_at = time.time()
         ok = sum(1 for f in job.files if f.status == "done")
         fail = sum(1 for f in job.files if f.status == "failed")
-        job.add_log(f"任务结束：✅ {ok} 成功 / ❌ {fail} 失败")
+        job.add_log(_("job_end", ok=ok, fail=fail))
 
 
 manager = JobManager()
