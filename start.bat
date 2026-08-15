@@ -17,12 +17,18 @@ for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":8377" ^| findstr "LI
 )
 timeout /t 2 /nobreak >nul 2>&1
 
-REM -- Find Python --
+REM -- Find Python: prefer .venv --
 set "PYTHON="
 
-if exist ".venv\Scripts\python.exe" (
-    set "PYTHON=.venv\Scripts\python.exe"
-    echo   [OK] Found project venv
+if exist "%~dp0.venv\Scripts\python.exe" (
+    set "PYTHON=%~dp0.venv\Scripts\python.exe"
+    echo   [OK] Using project venv
+    goto :found_python
+)
+
+if exist "%~dp0venv\Scripts\python.exe" (
+    set "PYTHON=%~dp0venv\Scripts\python.exe"
+    echo   [OK] Using project venv
     goto :found_python
 )
 
@@ -53,7 +59,7 @@ echo   [..] Checking dependencies...
 "%PYTHON%" -c "import fastapi, uvicorn, openai" >nul 2>&1
 if errorlevel 1 (
     echo   [..] Installing dependencies, please wait...
-    "%PYTHON%" -m pip install -r requirements.txt
+    "%PYTHON%" -m pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
     if errorlevel 1 (
         echo   [ERROR] Failed to install dependencies.
         echo   Try manually: pip install -r requirements.txt
