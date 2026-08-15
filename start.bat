@@ -1,10 +1,5 @@
 @echo off
 title LingoPDF - Batch PDF Translator
-
-REM ============================================
-REM  LingoPDF Launcher - Double-click to run
-REM ============================================
-
 cd /d "%~dp0"
 
 echo.
@@ -15,11 +10,12 @@ echo   ========================================
 echo.
 
 REM -- Kill any process using port 8377 --
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8377" ^| findstr "LISTENING" 2^>nul') do (
-    echo   [..] Stopping previous instance (PID %%a)...
+echo   [..] Checking port 8377...
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":8377" ^| findstr "LISTENING"') do (
+    echo   [..] Stopping previous instance PID %%a
     taskkill /F /PID %%a >nul 2>&1
-    timeout /t 1 /nobreak >nul
 )
+timeout /t 2 /nobreak >nul 2>&1
 
 REM -- Find Python --
 set "PYTHON="
