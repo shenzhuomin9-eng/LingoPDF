@@ -1,0 +1,17 @@
+# 敏感信息 —— 永远不要提交
+# （配置实际存于 ~/.linguapdf/config.json，仓库之外；.env 供部署用）
+.env
+*.key
+secrets/
+
+# 运行时产物
+outputs/
+data/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 系统杂项
+.DS_Store
+Thumbs.db

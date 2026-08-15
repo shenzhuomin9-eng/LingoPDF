@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LingoPDF — Batch PDF Translator</title>
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-logo">🌐</span>
+      <div>
+        <h1>LingoPDF</h1>
+        <p class="brand-sub" data-i18n="tagline">Batch PDF Translation · Layout Preserved · API / Free / Offline</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <select id="uiLang" class="ui-lang-select" title="Interface language">
+        <option value="en">English</option>
+        <option value="zh">中文</option>
+      </select>
+      <span id="engineBadge" class="engine-badge" data-i18n-title="clickToChange">API Translation</span>
+      <button id="btnSettings" class="btn btn-ghost">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span data-i18n="Settings">Settings</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 拖拽上传区 -->
+    <section id="dropZone" class="drop-zone">
+      <input type="file" id="fileInput" multiple accept=".pdf,.docx,.pptx,.doc,.ppt" hidden>
+      <div class="drop-inner">
+        <div class="drop-icon">📄</div>
+        <h2><span data-i18n="dropHere">Drop files here, or</span> <span class="link" id="btnBrowse" data-i18n="browse">browse files</span></h2>
+        <p class="drop-hint">
+          <span data-i18n="dropHint1">Supports PDF / DOCX / PPTX batch upload · Max 200MB per file</span><br>
+          <span data-i18n="dropHint2">DOCX/PPTX requires LibreOffice installed</span>
+        </p>
+      </div>
+    </section>
+
+    <!-- 语言方向 + 开始 -->
+    <section class="action-bar card">
+      <div class="lang-pair">
+        <label data-i18n="sourceLang">Source
+          <select id="langIn">
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="ru">Русский</option>
+            <option value="es">Español</option>
+            <option value="zh">中文</option>
+          </select>
+        </label>
+        <button id="btnSwap" class="btn-icon" data-i18n-title="swapLangs">⇄</button>
+        <label data-i18n="targetLang">Target
+          <select id="langOut">
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="ru">Русский</option>
+            <option value="es">Español</option>
+          </select>
+        </label>
+      </div>
+      <div class="action-buttons">
+        <button id="btnClear" class="btn btn-ghost" disabled data-i18n="clear">Clear</button>
+        <button id="btnDownloadAll" class="btn btn-ghost" hidden data-i18n="downloadAll">⬇ Download All</button>
+        <button id="btnStart" class="btn btn-primary" disabled data-i18n="start">▶ Start Translation</button>
+        <button id="btnCancel" class="btn btn-danger" hidden data-i18n="cancel">■ Cancel</button>
+      </div>
+    </section>
+
+    <!-- 文件列表 -->
+    <section class="card files-card" id="filesCard" hidden>
+      <div class="files-head">
+        <h3><span data-i18n="fileList">File List</span> <span id="fileCount" class="muted"></span></h3>
+        <div class="progress-summary">
+          <div class="progress-track"><div id="globalProgress" class="progress-fill"></div></div>
+          <span id="progressText" class="muted" data-i18n="ready">Ready</span>
+        </div>
+      </div>
+      <div id="fileList" class="file-list"></div>
+    </section>
+
+    <!-- 日志 -->
+    <section class="card log-card" id="logCard" hidden>
+      <div class="log-head">
+        <h3 data-i18n="runLog">Run Log</h3>
+        <button id="btnToggleLog" class="btn btn-ghost btn-sm" data-i18n="collapse">Collapse</button>
+      </div>
+      <div id="logPanel" class="log-panel"></div>
+    </section>
+
+    <footer class="footer">
+      <span data-i18n="footerText">Layout preserved by local detection model · Switch engines anytime · API Key stored locally only</span>
+    </footer>
+  </main>
+
+  <!-- 设置抽屉 -->
+  <div id="settingsOverlay" class="overlay" hidden></div>
+  <aside id="settingsDrawer" class="drawer" hidden>
+    <div class="drawer-head">
+      <h3 data-i18n="settingsTitle">⚙ Translation Settings</h3>
+      <button id="btnCloseSettings" class="btn-icon" data-i18n-title="close">✕</button>
+    </div>
+
+    <div class="drawer-body">
+      <div class="field">
+        <label data-i18n="engineLabel">Translation Engine</label>
+        <div id="engineCards" class="engine-cards">
+          <div class="engine-card" data-engine="openai">
+            <div class="engine-title">🚀 <span data-i18n="engineApi">API Translation</span></div>
+            <div class="engine-desc" data-i18n="engineApiDesc">OpenAI-compatible API<br>Highest quality · Requires API Key</div>
+            <span class="engine-tag" data-i18n="recommended">Recommended</span>
+          </div>
+          <div class="engine-card" data-engine="google">
+            <div class="engine-title">🆓 <span data-i18n="engineGoogle">Google Free</span></div>
+            <div class="engine-desc" data-i18n="engineGoogleDesc">Free web API<br>No Key needed · Requires internet</div>
+          </div>
+          <div class="engine-card" data-engine="argos">
+            <div class="engine-title">🔌 <span data-i18n="engineLocal">Local Offline</span></div>
+            <div class="engine-desc" data-i18n="engineLocalDesc">Argos local model<br>Works offline · Medium quality</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- openai 专属 -->
+      <div id="openaiFields" hidden>
+        <div class="field">
+          <label data-i18n="apiBaseUrl">API Base URL</label>
+          <input type="text" id="cfgBaseUrl" placeholder="https://api.deepseek.com (auto-appends /v1)">
+        </div>
+        <div class="field">
+          <label>API Key <span class="muted" data-i18n="apiKeyHint">(stored locally only, never uploaded)</span></label>
+          <input type="password" id="cfgApiKey" placeholder="sk-..." autocomplete="off">
+        </div>
+        <div class="field">
+          <label data-i18n="modelName">Model Name</label>
+          <input type="text" id="cfgModel" placeholder="deepseek-chat">
+        </div>
+        <button id="btnTestConn" class="btn btn-ghost btn-block" data-i18n="testConn">🔌 Test Connection</button>
+        <p id="testConnMsg" class="test-msg" hidden></p>
+      </div>
+
+      <!-- argos 专属 -->
+      <div id="argosFields" hidden>
+        <div class="argos-status card-inset">
+          <div id="argosStatus" class="muted" data-i18n="argosChecking">Checking local model status...</div>
+          <button id="btnArgosInstall" class="btn btn-ghost btn-sm" hidden data-i18n="argosDownload">⬇ Download en→zh model (~250MB, one-time)</button>
+        </div>
+        <p class="muted small" data-i18n="argosHint">Once installed, the local model runs fully offline. Quality is lower than API but sufficient for everyday documents.</p>
+      </div>
+
+      <div class="field">
+        <label data-i18n="threadLabel">Concurrent Threads <span class="muted" data-i18n="threadHint">(API engine concurrency)</span></label>
+        <input type="range" id="cfgThread" min="1" max="16" value="4">
+        <span id="threadVal" class="muted">4</span>
+      </div>
+
+      <div class="field checkbox-field">
+        <label class="checkbox">
+          <input type="checkbox" id="cfgDual">
+          <span data-i18n="dualOutput">Also output bilingual side-by-side version (<name>_dual.pdf)</span>
+        </label>
+      </div>
+
+      <div class="field">
+        <label data-i18n="outputDirLabel">Output Directory <span class="muted" data-i18n="outputDirHint">(empty = same folder as source file)</span></label>
+        <input type="text" id="cfgOutputDir" data-i18n-ph="outputDirPh" placeholder="Leave empty for source folder">
+      </div>
+    </div>
+
+    <div class="drawer-foot">
+      <button id="btnResetConfig" class="btn btn-ghost" data-i18n="resetDefaults">Reset Defaults</button>
+      <button id="btnSaveSettings" class="btn btn-primary" data-i18n="saveSettings">Save Settings</button>
+    </div>
+  </aside>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js?v=2024"></script>
+</body>
+</html>

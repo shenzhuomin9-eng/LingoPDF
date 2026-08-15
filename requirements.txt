@@ -1,0 +1,9 @@
+# 核心依赖
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+pdf2zh>=1.9
+openai>=1.0
+
+# 可选：本地离线翻译引擎（不装则该选项自动禁用）
+argostranslate>=1.9.6
