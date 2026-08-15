@@ -1,6 +1,6 @@
 # 敏感信息 —— 永远不要提交
 # （配置实际存于 ~/.linguapdf/config.json，仓库之外；.env 供部署用）
-.env
+/.env
 *.key
 secrets/
 
