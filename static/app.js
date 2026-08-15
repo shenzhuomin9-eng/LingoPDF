@@ -725,15 +725,13 @@ function bindEvents() {
   // 界面语言切换
   $("uiLang").addEventListener("change", (e) => {
     try {
-      // 立即切换（纯客户端，不依赖 async API）
       state.uiLang = e.target.value;
-      // 持久化到 localStorage 确保即时生效
       try { localStorage.setItem("linguapdf_lang", state.uiLang); } catch {}
-      // 立即应用 i18n
       applyI18n();
-      // 即时反馈 Toast
+      // 清空已有日志面板（旧日志是旧语言生成的，保留会混乱）
+      const panel = $("logPanel");
+      if (panel) panel.innerHTML = "";
       toast(state.uiLang === "zh" ? "已切换至中文" : "Switched to English", "ok");
-      // 同时持久化到后端配置
       (async () => {
         try {
           const resp = await fetch("/api/config", {

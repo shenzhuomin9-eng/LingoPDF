@@ -211,10 +211,15 @@ def cancel_job(job_id: str):
 def download_all(job_id: str):
     job = manager.get(job_id)
     if not job:
-        raise HTTPException(404, "任务不存在")
+        raise HTTPException(404, "Job not found")
     outputs = [o for f in job.files for o in f.outputs]
     if not outputs:
-        raise HTTPException(404, "没有可下载的结果")
+        raise HTTPException(404, "No files to download")
+    # 单个文件直接下载 PDF，多个文件才打 zip
+    if len(outputs) == 1:
+        o = outputs[0]
+        return FileResponse(o["path"], filename=Path(o["path"]).name, media_type="application/pdf")
+    # 多个文件打包 zip
     zip_path = UPLOAD_DIR / job_id / "results.zip"
     zip_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
