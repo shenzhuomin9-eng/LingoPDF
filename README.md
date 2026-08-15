@@ -73,19 +73,6 @@ LingoPDF 是一个 **批量 PDF 翻译工具**。你可以把多个 PDF 文件�
 
 就这么简单。默认 Google 引擎免费且无需任何配置。
 
-## 🐳 Docker 部署
-
-```dockerfile
-FROM python:3.11-slim
-RUN apt-get update && apt-get install -y libreoffice && rm -rf /var/lib/apt/lists/*
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-EXPOSE 8377
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8377"]
-```
-
 ## 🔐 安全说明
 
 - API Key 只存于 `~/.linguapdf/config.json`（仓库目录之外），不会被 git 追踪
@@ -159,19 +146,6 @@ LingoPDF is a **batch PDF translation tool**. Drag in multiple PDF files, transl
 4. Download the translated PDF when done
 
 It's that simple. The default Google engine is free and requires no configuration.
-
-## 🐳 Docker
-
-```dockerfile
-FROM python:3.11-slim
-RUN apt-get update && apt-get install -y libreoffice && rm -rf /var/lib/apt/lists/*
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-EXPOSE 8377
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8377"]
-```
 
 ## 📄 License
 
