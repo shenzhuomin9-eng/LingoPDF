@@ -142,11 +142,18 @@ class JobManager:
 
     def _run(self, job: Job):
         # 子线程必须有 asyncio 事件循环（pdf2zh 内部依赖）
+        # Windows 子线程用 SelectorEventLoop 避免 [Errno 22]
         import asyncio as _a
+        import sys as _sys
+        if _sys.platform == "win32":
+            _a.set_event_loop_policy(_a.WindowsSelectorEventLoopPolicy())
         try:
-            _a.get_event_loop()
+            _loop = _a.get_event_loop()
+            if _loop.is_closed():
+                raise RuntimeError("loop closed")
         except RuntimeError:
-            _a.set_event_loop(_a.new_event_loop())
+            _loop = _a.new_event_loop()
+            _a.set_event_loop(_loop)
 
         job.status = "running"
         job.started_at = time.time()

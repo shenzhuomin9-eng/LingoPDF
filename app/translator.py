@@ -15,6 +15,7 @@ import logging
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -384,10 +385,16 @@ def translate_pdf(
         from pdf2zh import translate_stream
 
         # 在子线程中确保有 asyncio 事件循环（pdf2zh 内部依赖 asyncio）
+        # Windows 子线程用 SelectorEventLoop 避免 [Errno 22]
+        if sys.platform == "win32":
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         try:
-            asyncio.get_event_loop()
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                raise RuntimeError("loop closed")
         except RuntimeError:
-            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
         model = get_layout_model(on_log)
         pdf_bytes = source_pdf.read_bytes()
