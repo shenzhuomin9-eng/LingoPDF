@@ -9,8 +9,9 @@ outputs/
 data/
 __pycache__/
 *.pyc
-.venv/
 venv/
+*.zip
+nul
 
 # 系统杂项
 .DS_Store
