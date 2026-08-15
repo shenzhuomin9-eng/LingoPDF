@@ -309,5 +309,51 @@ async def detect_lang_endpoint(
     raise HTTPException(400, "Must provide either job_id+file_index or file")
 
 
+# ── 远程关闭（浏览器关闭即关服务）─────────────────────────
+
+import os
+import signal
+import threading
+import time
+
+_last_heartbeat = time.time()
+_shutdown_requested_at = None
+_lock = threading.Lock()
+
+
+@app.post("/api/heartbeat")
+async def heartbeat():
+    """前端定期心跳，用于判断浏览器是否还开着。"""
+    global _last_heartbeat
+    with _lock:
+        _last_heartbeat = time.time()
+    return {"ok": True}
+
+
+@app.post("/api/shutdown")
+async def shutdown_server():
+    """前端在页面关闭时调用。后端延迟 2 秒后检查：
+    如果 shutdown 之后没有新的心跳（浏览器真关了）→ 退出进程；
+    如果有心跳（页面刷新后重新加载）→ 不退出。"""
+    global _shutdown_requested_at
+    with _lock:
+        _shutdown_requested_at = time.time()
+
+    def _delayed_kill():
+        time.sleep(2.0)
+        with _lock:
+            # shutdown 之后又收到新心跳 = 页面刷新，不关
+            if _last_heartbeat > _shutdown_requested_at:
+                return
+        try:
+            os.kill(os.getpid(), signal.SIGINT)
+        except Exception:
+            import sys
+            sys.exit(0)
+
+    threading.Thread(target=_delayed_kill, daemon=True).start()
+    return {"ok": True}
+
+
 # 静态前端（放最后，避免吞掉 /api）
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

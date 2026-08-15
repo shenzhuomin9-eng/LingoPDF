@@ -891,3 +891,43 @@ bindEvents();
 loadConfig()
   .catch((e) => toast(t("configLoadFailed") + e.message, "bad"))
   .finally(resumeLatestJob);
+
+/* ── 浏览器关闭即关服务 ─────────────────────────── */
+// 原理: 页面可见时定期发心跳，页面关闭/隐藏超过阈值则触发 shutdown
+// 刷新页面不会误关（刷新会立即重新加载、心跳恢复）
+
+let heartbeatTimer = null;
+let lastHeartbeat = Date.now();
+let shutdownTriggered = false;
+
+function startHeartbeat() {
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(() => {
+    fetch("/api/heartbeat", { method: "POST" }).catch(() => {});
+    lastHeartbeat = Date.now();
+  }, 2000);
+}
+
+function triggerShutdown() {
+  if (shutdownTriggered) return;
+  shutdownTriggered = true;
+  // sendBeacon 在页面卸载时仍能可靠发送
+  navigator.sendBeacon("/api/shutdown");
+}
+
+// 页面即将关闭 → 通知后端关闭
+window.addEventListener("beforeunload", () => {
+  // 只有真正关闭才触发，刷新时 beforeunload 也会触发但 sendBeacon 会被后端刷新覆盖
+  triggerShutdown();
+});
+
+// 页面隐藏（切到其他标签/最小化浏览器）→ 不立即关，但停止心跳
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    // 重新可见 → 恢复心跳，取消 shutdown 标记
+    shutdownTriggered = false;
+    startHeartbeat();
+  }
+});
+
+startHeartbeat();

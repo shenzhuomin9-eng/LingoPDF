@@ -28,8 +28,11 @@ echo   [OK] Environment ready
 echo.
 echo   [..] Starting LingoPDF at http://127.0.0.1:8377
 echo   [..] Browser will open in 3 seconds...
-echo   [..] Close this window to stop LingoPDF.
+echo   [..] Close the browser tab to stop LingoPDF.
 echo.
+
+REM -- Minimize this window (服务在后台运行，关浏览器即关服务) --
+if not "%1"=="--no-min" powershell -command "(New-Object -ComObject WScript.Shell).AppActivate((Get-Process -Name cmd -Id $PID).MainWindowHandle); (New-Object -ComObject WScript.Shell).SendKeys('% ')"
 
 REM -- Open browser after 3 seconds --
 start /b cmd /c "ping 127.0.0.1 -n 4 >nul 2>&1 & start http://127.0.0.1:8377"
