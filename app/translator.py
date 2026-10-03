@@ -566,11 +566,13 @@ def translate_pdf(
     opts: TranslateOptions,
     on_log: Optional[Callable[[str], None]] = None,
     thread: int = 4,
+    on_progress: Optional[Callable[[float], None]] = None,
 ) -> TranslateResult:
     """翻译单个 PDF，输出保留原排版的译文 PDF。
 
     Args:
         output_dir: 输出目录；None 表示用源文件所在目录（"原路径"）。
+        on_progress: 页级进度回调，参数为 0.0~1.0。
 
     返回 files: [{name, path}]，含 <stem>_<lang_out>.pdf，
     dual=True 时另加 <stem>_dual.pdf（左右/上下双语对照）。
@@ -646,6 +648,17 @@ def translate_pdf(
                 "OPENAI_MODEL": opts.model,
             }
 
+        def _progress_cb(p):
+            """pdf2zh 逐页回调：p.n=已完成页数, p.total=总页数。"""
+            if on_progress is None:
+                return
+            total = getattr(p, "total", 0)
+            if total:
+                try:
+                    on_progress(min(1.0, float(p.n) / float(total)))
+                except Exception:
+                    pass
+
         mono_bytes, dual_bytes = translate_stream(
             stream=pdf_bytes,
             lang_in=opts.lang_in,
@@ -654,6 +667,7 @@ def translate_pdf(
             thread=thread,
             envs=envs,
             model=model,
+            callback=_progress_cb,
         )
 
         # 输出目录：空 = 源文件所在目录（"原路径"），否则用指定目录

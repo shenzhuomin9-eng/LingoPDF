@@ -538,6 +538,7 @@ function renderFiles() {
       <div class="file-info">
         <div class="file-name">${escapeHtml(f.name)}${langBadge}</div>
         <div class="file-meta">${fmtSize(f.size)}</div>
+        <div class="file-progress" style="display:none"><div class="file-progress-fill"></div></div>
       </div>
       <span class="status-chip status-pending">${t("pending")}</span>
       <button class="btn-icon" title="${t("remove")}" data-rm="${i}">✕</button>`;
@@ -657,8 +658,19 @@ async function pollStatus() {
     if (!row) return;
     const chip = row.querySelector(".status-chip");
     chip.className = "status-chip status-" + f.status;
-    chip.textContent = STATUS_LABEL[f.status]?.() || f.status;
     const meta = row.querySelector(".file-meta");
+    const bar = row.querySelector(".file-progress");
+    if (f.status === "translating") {
+      const pct = Math.min(99, Math.round((f.progress || 0) * 100));
+      chip.textContent = `${t("translating")} ${pct}%`;
+      if (bar) {
+        bar.style.display = "block";
+        bar.querySelector(".file-progress-fill").style.width = Math.max(4, pct) + "%";
+      }
+    } else {
+      chip.textContent = STATUS_LABEL[f.status]?.() || f.status;
+      if (bar) bar.remove();
+    }
     if (f.status === "done") {
       const outPaths = f.outputs.map(o => o.name).join(", ");
       meta.innerHTML = `${fmtSize(f.size)} · ${fmtTime(f.elapsed)} · <span class="out-path">📄 ${escapeHtml(outPaths)}</span>`;

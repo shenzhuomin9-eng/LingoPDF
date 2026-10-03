@@ -341,6 +341,22 @@ select { cursor: pointer; padding-right: 30px;
 .file-meta .err { color: var(--red); }
 .file-meta .out-path { color: var(--accent-2); }
 
+.file-progress {
+  margin-top: 5px;
+  height: 4px;
+  background: var(--inset);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.file-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 8px rgba(124, 108, 255, 0.55);
+  transition: width 0.6s ease;
+}
+
 /* 检测语言徽章 */
 .detected-lang-badge {
   display: inline-block;

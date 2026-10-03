@@ -38,6 +38,7 @@ class JobFile:
     status: str = "pending"      # pending | converting | translating | done | failed | canceled
     error: Optional[str] = None
     elapsed: float = 0.0
+    progress: float = 0.0        # 翻译页级进度 0.0 ~ 1.0
     outputs: list[dict] = field(default_factory=list)  # [{name, path}]
 
     def to_dict(self) -> dict:
@@ -47,6 +48,7 @@ class JobFile:
             "status": self.status,
             "error": self.error,
             "elapsed": round(self.elapsed, 1),
+            "progress": round(self.progress, 2),
             "outputs": self.outputs,
         }
 
@@ -197,6 +199,7 @@ class JobManager:
                         continue
 
                 jf.status = "translating"
+                jf.progress = 0.0
                 if cfg_output_dir:
                     out_dir = Path(cfg_output_dir) / jf.upload_path.stem
                 else:
@@ -207,7 +210,9 @@ class JobManager:
                     job.opts,
                     on_log=lambda m, _n=jf.name: job.add_log(f"[{_n}] {m}"),
                     thread=job.thread,
+                    on_progress=lambda frac, _jf=jf: setattr(_jf, "progress", frac),
                 )
+                jf.progress = 1.0
                 jf.elapsed = result.elapsed
                 if result.success:
                     jf.status = "done"
