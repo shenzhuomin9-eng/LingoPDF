@@ -172,6 +172,8 @@ class JobManager:
         # 输出目录：空 = 源文件原路径；否则用指定目录
         cfg_output_dir = cfg.load_config().get("output_dir", "")
 
+        # ── 串行翻译文件，pdf2zh 内部已并发翻译文本段 ──
+        # 多文件逐个翻译，每个文件内部用 thread 参数并发翻译文本段
         for i, jf in enumerate(job.files):
             if job.status == "canceled":
                 for rest in job.files[i:]:
@@ -195,13 +197,10 @@ class JobManager:
                         continue
 
                 jf.status = "translating"
-                # 原路径模式：传空让 translate_pdf 用源文件所在目录
-                # 上传的文件在 data/uploads/<jobid>/ 下，"原路径"指那里
-                # 指定目录模式：在该目录下为每个文件建子目录
                 if cfg_output_dir:
                     out_dir = Path(cfg_output_dir) / jf.upload_path.stem
                 else:
-                    out_dir = None  # None → translate_pdf 用 source_pdf.parent
+                    out_dir = None
                 result = translate_pdf(
                     pdf_source,
                     out_dir,

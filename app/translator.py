@@ -49,8 +49,9 @@ def _silence_tqdm():
             return
         try:
             import tqdm as _tqdm
+            import io as _io
 
-            _tqdm_devnull = open(os.devnull, "w", encoding="utf-8", errors="ignore")
+            _tqdm_devnull = _io.StringIO()
             # 通过 monkey-patch 修改 tqdm 类的默认 file 参数
             _orig_init = _tqdm.tqdm.__init__
 

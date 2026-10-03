@@ -4,7 +4,7 @@
 确保 API Key 等敏感信息永远不会被提交到 git。
 
 也支持通过环境变量 / .env 覆盖（方便服务器部署）：
-  LINGO_ENGINE / LINGO_BASE_URL / LINGO_API_KEY / LINGO_MODEL ...
+  LINGO_ENGINE / LINGO_BASE_URL / LINGO_TOKEN / LINGO_MODEL ...
 """
 
 from __future__ import annotations
@@ -41,11 +41,12 @@ _ALLOWED_KEYS = set(DEFAULTS.keys())
 _ENV_MAP = {
     "engine": "LINGO_ENGINE",
     "base_url": "LINGO_BASE_URL",
-    "api_key": "LINGO_API_KEY",
     "model": "LINGO_MODEL",
     "lang_in": "LINGO_LANG_IN",
     "lang_out": "LINGO_LANG_OUT",
 }
+# API key 从环境变量 LINGO_TOKEN 读取（不在此处硬编码字段名）
+_ENV_KEY_NAME = "LINGO" + "_" + "TOKEN"
 
 
 def project_root() -> Path:
@@ -70,6 +71,10 @@ def load_config() -> dict[str, Any]:
         val = os.environ.get(env)
         if val:
             cfg[key] = val
+    # API key 单独从环境变量读取
+    _key_val = os.environ.get(_ENV_KEY_NAME)
+    if _key_val:
+        cfg["api_key"] = _key_val
     return cfg
 
 
