@@ -109,6 +109,28 @@ def normalize_base_url(url: str) -> str:
     return url
 
 
+def _strip_stale_links(pdf_bytes: bytes) -> bytes:
+    """清除 PDF 里的超链接注释。
+
+    译文重排后文字位置全部变化，原文的引用跳转链接还留在旧坐标上，
+    阅读器里会显示为错位的框（部分阅读器画成绿色框）。直接清掉。
+    """
+    try:
+        import fitz
+
+        with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+            removed = 0
+            for page in doc:
+                for link in page.get_links():
+                    page.delete_link(link)
+                    removed += 1
+            if removed:
+                logger.debug("Removed %d stale link annotations", removed)
+            return doc.tobytes()
+    except Exception:
+        return pdf_bytes  # 清理失败不影响翻译结果
+
+
 # ── pdf2zh 导入补丁 ─────────────────────────────────────
 # 必须在模块加载时就执行，否则 main.py 的 import 会先触发 pdf2zh 导入
 
@@ -639,11 +661,11 @@ def translate_pdf(
         out_dir.mkdir(parents=True, exist_ok=True)
         files = []
         mono_path = out_dir / f"{source_pdf.stem}_{opts.lang_out}.pdf"
-        mono_path.write_bytes(mono_bytes)
+        mono_path.write_bytes(_strip_stale_links(mono_bytes))
         files.append({"name": mono_path.name, "path": str(mono_path)})
         if opts.dual and dual_bytes:
             dual_path = out_dir / f"{source_pdf.stem}_dual.pdf"
-            dual_path.write_bytes(dual_bytes)
+            dual_path.write_bytes(_strip_stale_links(dual_bytes))
             files.append({"name": dual_path.name, "path": str(dual_path)})
 
         elapsed = time.monotonic() - t0
