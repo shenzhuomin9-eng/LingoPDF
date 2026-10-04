@@ -26,16 +26,16 @@ LingoPDF 是一个 **批量 PDF 翻译工具**。你可以把多个 PDF 文件�
 **核心亮点：**
 - 🆓 **默认 Google 免费翻译**——不需要任何 API Key，拖入即翻，速度快
 - 🎨 **排版保留**——翻译后 PDF 的版面和原文一致，公式图表不乱
-- 📚 **批量处理**——一次拖入多个文件，队列逐个翻译
+- 📚 **批量处理**——一次导入多个文件，API 文档交错处理；资源不足时自动逐份处理
 - 🔌 **三种引擎可选**——Google 免费 / API 高质量 / 本地离线
 
 ## 界面截图
 
 ### 主界面
-![主界面](docs/main-interface-zh.png)
+![主界面](docs/screenshots/workspace.jpg)
 
-### 设置 — 三种翻译引擎
-![设置](docs/settings-zh.png)
+### 小屏布局
+![小屏布局](docs/screenshots/workspace-mobile.jpg)
 
 ## ✨ 功能
 
@@ -45,7 +45,9 @@ LingoPDF 是一个 **批量 PDF 翻译工具**。你可以把多个 PDF 文件�
 - 🚀 **API 模式** — 自带 OpenAI 兼容 API Key（DeepSeek、GLM、Qwen 等），质量最高
 - 🔌 **本地离线** — Argos 本地模型，断网可用（首次下载约 250MB）
 - 🌐 **双语界面** — 英文 / 中文一键切换
-- 📁 **原路径输出** — 译文 PDF 保存到源文件所在目录
+- 📁 **原路径输出** — 本地选择或完整路径导入可记录原目录；下载全部保存到各原目录的 `LingoPDF` 子文件夹，同名结果自动编号
+- 📖 **参考文献保留原文** — 默认保护文献区域与续页，同页正文及后续附录照常翻译
+- ⏸ **停止与重试** — 停止任务并丢弃迟到的 API 响应；失败文件可单独重试，刷新同一页面可恢复任务
 - 🔐 **隐私安全** — API Key 仅存本机，不进仓库
 
 ## 🚀 快速开始（Windows）
@@ -69,12 +71,18 @@ LingoPDF 是一个 **批量 PDF 翻译工具**。你可以把多个 PDF 文件�
 
 ## 怎么翻译
 
-1. 把 PDF 文件拖到上传区
+1. 点击主界面 **把文档拖到这里** 区域即可选择本地文件，或用 **按原路径导入** 粘贴文件完整路径。也可以拖放文件，但浏览器拖放无法取得真实原路径
 2. 选择源语言/目标语言（默认：英语 → 中文）
 3. 点击 **▶ 开始翻译**
-4. 翻译完成后点击下载
+4. 翻译完成后点击 **下载全部到原目录**，分别保存到每个源文件旁的 `LingoPDF` 文件夹；也可以下载单份 PDF 或 ZIP
 
-就这么简单。默认 Google 引擎免费且无需任何配置。
+参考文献保护默认开启。API 引擎使用学术翻译提示和公式占位符校验，并保留缓存；首次处理需要加载排版模型。Google 免费服务可能限流，遇到连接错误可在设置中使用已经配置的 API 引擎。
+
+API 引擎自动交错处理最多两份文档：等待远端翻译时处理下一份，版面模型共享，PDF 本地操作保持在一个线程内，总 API 请求数不超过设置中的并发总额。需要批处理引擎、至少 2 GB 可用内存、请求并发至少 2 且每份文件不超过 25 MB；条件不满足时自动逐份处理并记录原因。这会增加少量文档暂存内存，提速幅度取决于远端服务和缓存。
+
+扫描 PDF 需要先 OCR；加密 PDF 需要先解锁。Word / PowerPoint 转换需要安装 LibreOffice。浏览器上传无法记录原路径时，“保存全部译文”会保存到本项目的 `outputs/LingoPDF`，页面会明确提示。统一输出目录可在设置中指定。
+
+更新内容见 [更新记录](CHANGELOG.md)。重新启动 `start.bat` 后加载新版后端。
 
 ## 🔐 安全说明
 
@@ -103,16 +111,16 @@ LingoPDF is a **batch PDF translation tool**. Drag in multiple PDF files, transl
 **Key highlights:**
 - 🆓 **Google Free translation by default** — no API key needed, fast, just drag and translate
 - 🎨 **Layout preserved** — translated PDF matches the original's layout, formulas and charts intact
-- 📚 **Batch processing** — drag multiple files at once, queue translates one by one
+- 📚 **Batch processing** — drag multiple files at once, bounded API document pipeline with automatic serial fallback
 - 🔌 **Three engines available** — Google Free / API high-quality / Local offline
 
 ## Screenshots
 
 ### Main Interface
-![Main Interface](docs/main-interface.png)
+![Main Interface](docs/screenshots/workspace.jpg)
 
 ### Settings — 3 Translation Engines
-![Settings](docs/settings.png)
+![Small-screen layout](docs/screenshots/workspace-mobile.jpg)
 
 ## ✨ Features
 
@@ -122,7 +130,9 @@ LingoPDF is a **batch PDF translation tool**. Drag in multiple PDF files, transl
 - 🚀 **API Mode** — Bring your own OpenAI-compatible API key (DeepSeek, GLM, Qwen, etc.) for best quality
 - 🔌 **Local Offline** — Argos Translate model works without internet (download once, ~250MB)
 - 🌐 **Bilingual UI** — English / 中文, one-click switch
-- 📁 **Original Path Output** — Translated PDF saved next to the source file
+- 📁 **Original Path Output** — Choose local files or import absolute paths, then save all into each source folder's `LingoPDF` subfolder without overwriting existing files
+- 📖 **Original References** — Protect bibliography regions and continuation pages by default
+- ⏸ **Stop and Retry** — Discard late API responses and retry failed or stopped files
 - 🔐 **Privacy** — API Key stored locally only, never in the repo
 
 ## 🚀 Quick Start (Windows)
@@ -146,12 +156,12 @@ LingoPDF is a **batch PDF translation tool**. Drag in multiple PDF files, transl
 
 ## How to Translate
 
-1. Drag PDF file(s) into the upload area
+1. Choose local files or import absolute paths to retain source folders. Browser uploads cannot expose their original paths
 2. Select source/target language (default: English → Chinese)
 3. Click **▶ Start Translation**
-4. Download the translated PDF when done
+4. Save all into the source folders, or download individual PDFs / ZIP
 
-It's that simple. The default Google engine is free and requires no configuration.
+Browser uploads without a source path save to project `outputs/LingoPDF`. A shared output folder can be set in Settings. References stay original by default. Scanned PDFs require OCR, and Word / PowerPoint require LibreOffice. Google may rate-limit requests; an API engine can be selected in Settings.
 
 ## 📄 License
 

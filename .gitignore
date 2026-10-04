@@ -19,3 +19,11 @@ Thumbs.db
 ]
 .mimosa/
 marketing/
+
+# 本机验收记录、论文截图及临时工作计划
+/docs/verification/
+/docs/superpowers/
+/task_plan.md
+/findings.md
+/progress.md
+/.linguapdf.pid

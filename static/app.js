@@ -1,945 +1,339 @@
-/* ═══════════════ LingoPDF 前端逻辑 ═══════════════ */
-
-const $ = (id) => document.getElementById(id);
-
-const state = {
-  cfg: {},
-  files: [],        // {name, size, path(File)}
-  jobId: null,
-  polling: null,
-  logSeq: 0,
-  uiLang: "en",    // 界面语言: en | zh
-};
-
-/* ── i18n 国际化 ─────────────────────────── */
-
+"use strict";
+const $ = id => document.getElementById(id);
+const state = {cfg: {}, files: [], job: null, jobId: null, busy: false, picking: false, timer: null,
+  polling: false, logSeq: 0, uiLang: "zh", drawerEngine: "google", selection: 0};
 const I18N = {
-  en: {
-    tagline: "Batch PDF Translation · Layout Preserved · API / Free / Offline",
-    clickToChange: "Click to change settings",
-    Settings: "Settings",
-    dropHere: "Drop files here, or",
-    browse: "browse files",
-    dropHint1: "Supports PDF / DOCX / PPTX batch upload · Max 200MB per file",
-    dropHint2: "DOCX/PPTX requires LibreOffice installed",
-    sourceLang: "Source",
-    targetLang: "Target",
-    swapLangs: "Swap languages",
-    clear: "Clear",
-    downloadAll: "⬇ Download All",
-    start: "▶ Start Translation",
-    uploading: "⏳ Uploading...",
-    cancel: "■ Cancel",
-    fileList: "File List",
-    ready: "Ready",
-    detectedLang: "Source: ",
-    runLog: "Run Log",
-    collapse: "Collapse",
-    expand: "Expand",
-    footerText: "Layout preserved by local detection model · Switch engines anytime · API Key stored locally only",
-    settingsTitle: "⚙ Translation Settings",
-    close: "Close",
-    engineLabel: "Translation Engine",
-    engineApi: "API Translation",
-    engineApiDesc: "OpenAI-compatible API<br>Highest quality · Requires API Key",
-    recommended: "Recommended",
-    engineGoogle: "Google Free",
-    engineGoogleDesc: "Free web API<br>No Key needed · Requires internet",
-    engineLocal: "Local Offline",
-    engineLocalDesc: "Argos local model<br>Works offline · Medium quality",
-    apiBaseUrl: "API Base URL",
-    apiKeyHint: "(stored locally only, never uploaded)",
-    apiKeySaved: "Saved (type a new value to overwrite)",
-    modelName: "Model Name",
-    testConn: "🔌 Test Connection",
-    testing: "⏳ Testing...",
-    connecting: "Connecting...",
-    argosChecking: "Checking local model status...",
-    argosDownload: "⬇ Download en→zh model (~250MB, one-time)",
-    argosHint: "Once installed, the local model runs fully offline. Quality is lower than API but sufficient for everyday documents.",
-    threadLabel: "Concurrent Threads",
-    threadHint: "(API engine concurrency)",
-    dualOutput: "Also output bilingual side-by-side version (<name>_dual.pdf)",
-    outputDirLabel: "Output Directory",
-    outputDirHint: "(empty = same folder as source file)",
-    outputDirPh: "Leave empty for source folder",
-    resetDefaults: "Reset Defaults",
-    saveSettings: "Save Settings",
-    // 状态
-    pending: "Pending",
-    remove: "Remove",
-    filesUnit: "files",
-    converting: "Converting…",
-    translating: "Translating…",
-    done: "Done",
-    failed: "Failed",
-    canceled: "Canceled",
-    // 徽章
-    engineApiBadge: "API Translation",
-    engineGoogleBadge: "Google Free",
-    engineArgosBadge: "Local Offline",
-    // 消息
-    settingsSaved: "Settings saved ✓",
-    skippedFiles: (n) => `Skipped ${n} unsupported file(s)`,
-    configLoadFailed: "Failed to load config: ",
-    noKeyWarn: "API engine selected — please configure base URL and key in Settings",
-    cancelSent: "Cancel request sent",
-    removeBlocked: "Cannot remove files during active job",
-    resetConfirm: "Reset all settings to defaults? (including saved API Key)",
-    resetDone: "Settings reset to defaults",
-    argosNotInstalled: "argostranslate library not installed",
-    argosRunCmd: "Please run: pip install argostranslate then restart",
-    argosReady: "✓ Local model ready",
-    argosInstalled: (p) => `Installed: ${p} · Fully offline`,
-    argosNotReady: "⏳ Local model not yet installed",
-    argosDownloadHint: "Click the button below to download (internet needed once)",
-    downloading: "⏳ Downloading, please wait...",
-    uploadFailed: (m) => m,
-    detecting: "Detecting",
-    // 进度
-    translating2: (d, t) => `Translating ${d}/${t}`,
-    finished: (ok, fail, elapsed) => `Done · ✅ ${ok} ok / ❌ ${fail} failed · ${elapsed}`,
-    jobEnded: (ok, fail) => `—— Job ended: ✅ ${ok} / ❌ ${fail} ——`,
-    jobStarted: (n) => `Job started: ${n} file(s)`,
-    noLibreOffice: "⚠ LibreOffice not detected, non-PDF files will be skipped",
-    libreOfficeFound: (n) => `LibreOffice: ${n}`,
-    loadingModel: "Loading layout detection model (~5-10s)...",
-    modelLoaded: "Layout model loaded",
-    modelLoadFailed: (e) => `Model load failed: ${e}`,
-    translatingFile: (n) => `[${n}] Converting to PDF...`,
-    // 下载
-    dlTranslated: "⬇ Download",
-    dlDual: "⬇ Bilingual",
-  },
   zh: {
-    tagline: "批量 PDF 翻译 · 保留原排版 · 支持 API / 免费 / 本地离线",
-    clickToChange: "点击更改设置",
-    Settings: "设置",
-    dropHere: "拖拽文件到这里，或",
-    browse: "浏览文件",
-    dropHint1: "支持 PDF / DOCX / PPTX 批量上传 · 单文件 ≤ 200MB",
-    dropHint2: "DOCX/PPTX 需要本机安装 LibreOffice",
-    sourceLang: "源语言",
-    targetLang: "目标语言",
-    swapLangs: "交换语言",
-    clear: "清空",
-    downloadAll: "⬇ 全部下载",
-    start: "▶ 开始翻译",
-    uploading: "⏳ 上传中...",
-    cancel: "■ 取消",
-    fileList: "文件列表",
-    ready: "就绪",
-    detectedLang: "源语言：",
-    runLog: "运行日志",
-    collapse: "收起",
-    expand: "展开",
-    footerText: "排版保留由本地版面检测模型完成 · 翻译引擎可随时切换 · API Key 仅存本机",
-    settingsTitle: "⚙ 翻译设置",
-    close: "关闭",
-    engineLabel: "翻译引擎",
-    engineApi: "API 翻译",
-    engineApiDesc: "OpenAI 兼容接口<br>质量最高 · 需 API Key",
-    recommended: "推荐",
-    engineGoogle: "Google 免费",
-    engineGoogleDesc: "免费网页接口<br>无需 Key · 需联网",
-    engineLocal: "本地离线",
-    engineLocalDesc: "Argos 本地模型<br>断网可用 · 质量中等",
-    apiBaseUrl: "API Base URL",
-    apiKeyHint: "（仅保存在本机，不会上传到任何地方）",
-    apiKeySaved: "已保存（输入新值可覆盖）",
-    modelName: "模型名称",
-    testConn: "🔌 测试连接",
-    testing: "⏳ 测试中...",
-    connecting: "正在连接...",
-    argosChecking: "检查本地模型状态...",
-    argosDownload: "⬇ 下载 en→zh 模型（约 250MB，仅一次）",
-    argosHint: "本地模型安装后完全离线运行，不再需要网络。质量不如 API，但日常文档够用。",
-    threadLabel: "并发线程数",
-    threadHint: "（API 引擎的并发请求粒度）",
-    dualOutput: "同时输出双语对照版 (<原名>_dual.pdf，左右/上下对照)",
-    outputDirLabel: "输出目录",
-    outputDirHint: "（留空 = 输出到源文件原路径）",
-    outputDirPh: "留空则与源文件同目录",
-    resetDefaults: "恢复默认",
-    saveSettings: "保存设置",
-    pending: "等待中",
-    remove: "移除",
-    filesUnit: "个",
-    converting: "转 PDF…",
-    translating: "翻译中…",
-    done: "完成",
-    failed: "失败",
-    canceled: "已取消",
-    engineApiBadge: "API 翻译",
-    engineGoogleBadge: "Google 免费",
-    engineArgosBadge: "本地离线",
-    settingsSaved: "设置已保存 ✓",
-    skippedFiles: (n) => `跳过 ${n} 个不支持的文件`,
-    configLoadFailed: "加载配置失败: ",
-    noKeyWarn: "当前引擎为 API 翻译，请先在设置中配置 base URL 和 key",
-    cancelSent: "已发送取消请求",
-    removeBlocked: "任务进行中，无法移除文件",
-    resetConfirm: "恢复全部设置为默认值？（包含已保存的 API Key）",
-    resetDone: "已恢复默认",
-    argosNotInstalled: "⚠ argostranslate 库未安装",
-    argosRunCmd: "请执行: pip install argostranslate 后重启服务",
-    argosReady: "✓ 本地模型已就绪",
-    argosInstalled: (p) => `已安装: ${p} · 完全离线可用`,
-    argosNotReady: "⏳ 尚未安装本地模型",
-    argosDownloadHint: "点击下方按钮下载（仅首次需要联网）",
-    downloading: "⏳ 下载中，请稍候...",
-    uploadFailed: (m) => m,
-    detecting: "检测中",
-    translating2: (d, t) => `翻译中 ${d}/${t}`,
-    finished: (ok, fail, elapsed) => `完成 · ✅ ${ok} 成功 / ❌ ${fail} 失败 · ${elapsed}`,
-    jobEnded: (ok, fail) => `—— 任务结束：✅ ${ok} / ❌ ${fail} ——`,
-    jobStarted: (n) => `任务开始：${n} 个文件`,
-    noLibreOffice: "⚠ 未检测到 LibreOffice，非 PDF 文件将跳过",
-    libreOfficeFound: (n) => `LibreOffice: ${n}`,
-    loadingModel: "加载版面检测模型（首次约 5-10 秒）...",
-    modelLoaded: "版面模型加载完成",
-    modelLoadFailed: (e) => `模型加载失败: ${e}`,
-    translatingFile: (n) => `[${n}] 正在转为 PDF...`,
-    dlTranslated: "⬇ 下载",
-    dlDual: "⬇ 对照版",
+    brandSub:"文档翻译工作台",localService:"本机运行",settings:"设置",heroTitle:'让语言，<span>不再是阅读的边界。</span>',heroDesc:"批量翻译论文与文档。保留排版，也保留你的阅读节奏。",
+    addDocuments:"添加文档",dropTitle:"把文档拖到这里",dropDesc:"或点击选择本地文件 · 每个文件不超过 200 MB",pickLocal:"选择本地文件",pathImport:"按原路径导入 ↗",pathNote:"点击选择会记住原目录；浏览器拖放不会提供真实路径。",pathLabel:"粘贴原文件的完整路径，每行一个",pathTip:"可直接从文件资源管理器“复制文件地址”。",import:"导入文件",
+    queue:"文档队列",clear:"清空列表",emptyTitle:"还没有待翻译的文档",emptyDesc:"添加文件后，选择语言并开始翻译。",resultsReady:"译文已就绪",resultsHint:"按照显示的保存位置保存，已有文件不会覆盖。",downloadZip:"下载文件 / ZIP",saveAll:"下载全部到原目录",saveFallback:"保存全部译文",activity:"运行记录",collapse:"收起",expand:"展开",
+    translateSettings:"翻译选项",sourceLang:"源语言",targetLang:"目标语言",swap:"交换语言",engine:"翻译引擎",engineChange:"在设置中更换翻译引擎",skipRefs:"参考文献保留原文",skipRefsHint:"自动保护文献区域，正文照常翻译",dual:"双语对照 PDF",dualHint:"额外生成原文与译文交替页",start:"开始翻译",cancel:"停止翻译",retry:"重试失败 / 已停止的文件",startNote:"保留公式、图表与双栏排版",
+    tipTitle:"为专注阅读而设计",tipBody:"论文推荐 API 引擎；日常文档可使用 Google 免费翻译。Word 与 PowerPoint 需要 LibreOffice。",tipFooter:"原文件始终保留",footer:"跨越语言，保留思考。",privacy:"密钥仅存本机 · 联网引擎会发送待译正文",settingsTitle:"让翻译适合你",close:"关闭设置",
+    google:"Google 免费",openai:"API 翻译",argos:"本地离线",googleDesc:"无需密钥 · 需要联网",apiDesc:"学术阅读推荐 · OpenAI 兼容接口",argosDesc:"Argos 本地模型 · 无需联网",keyHint:"仅存本机，读取时显示掩码。",model:"模型名称",installModel:"下载当前语言对模型",testConn:"测试当前引擎",threads:"API 请求并发总额",threadsHint:"通常 4–8 即可；过高可能触发服务限流。",
+    outputDir:"统一保存目录（可选）",outputHint:"留空时按各原目录保存；无原路径的上传保存到项目 outputs/LingoPDF。指定目录也会创建 LingoPDF 子文件夹。",libreoffice:"LibreOffice 程序路径（可选）",libreofficeHint:"留空自动检测，用于 Word / PowerPoint 转 PDF。",settingsNote:"翻译结果与原文件独立保存。参考文献保护默认开启，可在主界面调整。",reset:"恢复常用选项",saveSettings:"保存设置",
+    pending:"待翻译",converting:"转换中",translating:"翻译中",done:"已完成",failed:"失败",canceled:"已停止",queued:"排队中",remove:"移除文件",mono:"下载译文 ↗",bilingual:"双语对照 ↗",unknownPath:"浏览器上传 · 原路径不可用",uploading:"正在准备文件…",saved:"设置已保存",testing:"正在测试…",stopping:"正在停止…",picking:"等待选择…",saving:"正在保存…",savedCount:"已保存 {n} 个 PDF",fallback:"部分浏览器上传文件已保存到项目 outputs/LingoPDF。",noPaths:"请先输入原文件路径",sameLang:"源语言与目标语言需要不同",invalidFiles:"部分文件无效或超过 200MB，已跳过",newBatch:"已建立新的文档队列",ready:"就绪，等待开始",
+    finished:"完成 {ok} · 失败 {failed} · 用时 {elapsed}",running:"已处理 {done} / {total} 个文件",cancelSummary:"任务已停止 · 完成 {ok} · 失败 {failed}",recovering:"连接暂时中断，正在恢复…",knownDest:"保存位置：各原文件所在目录 / LingoPDF",unknownDest:"浏览器上传未提供原路径，保存到项目 outputs / LingoPDF。可用本地选择保留原路径。",customDest:"统一保存至：",refsKept:"文献保护 {n} 页",noRetry:"没有可重试的文件，请重新导入。",argosMissing:"未安装 Argos；请安装 requirements.txt 中的可选依赖。",modelReady:"当前语言对本地模型已就绪。",modelMissing:"当前语言对尚未安装模型。",loadFailed:"加载失败：",savedError:"{n} 个文件未保存，请检查目录权限。",resetDone:"常用选项已恢复，API 凭据保留",noNew:"请添加新文件后开始翻译"
   },
+  en: {
+    brandSub:"DOCUMENT WORKSPACE",localService:"Running locally",settings:"Settings",heroTitle:'Make language <span>an open door.</span>',heroDesc:"Translate papers and documents in batches. Keep the layout. Stay in your reading flow.",
+    addDocuments:"Add documents",dropTitle:"Drop your documents here",dropDesc:"or click to choose local files · Up to 200 MB per file",pickLocal:"Choose local files",pathImport:"Import by original path ↗",pathNote:"Click to select and keep the source folder. Browser drops do not expose the original path.",pathLabel:"Paste absolute source file paths, one per line",pathTip:"Use “Copy as path” in File Explorer.",import:"Import files",
+    queue:"Document queue",clear:"Clear queue",emptyTitle:"A fresh space for your documents",emptyDesc:"Add files, choose your languages, and start translating.",resultsReady:"Your translations are ready",resultsHint:"Save to the displayed destination. Existing files stay intact.",downloadZip:"Download files / ZIP",saveAll:"Save all to source folders",saveFallback:"Save all translations",activity:"Activity",collapse:"Collapse",expand:"Expand",
+    translateSettings:"Translation options",sourceLang:"From",targetLang:"To",swap:"Swap languages",engine:"Translation engine",engineChange:"Change translation engine in settings",skipRefs:"Keep references original",skipRefsHint:"Protect bibliography, translate the body",dual:"Bilingual PDF",dualHint:"Also create alternating original / translated pages",start:"Start translation",cancel:"Stop translation",retry:"Retry failed / stopped files",startNote:"Formulas, figures and columns preserved",
+    tipTitle:"Made for focused reading",tipBody:"Use an API engine for academic papers, or Google Free for everyday documents. Word and PowerPoint require LibreOffice.",tipFooter:"Your originals stay intact",footer:"Every language. Every idea.",privacy:"Keys stay local · Online engines receive body text",settingsTitle:"Make translation yours",close:"Close settings",
+    google:"Google Free",openai:"API Translation",argos:"Local Offline",googleDesc:"No key needed · Internet required",apiDesc:"For academic reading · OpenAI-compatible",argosDesc:"Argos local model · Works offline",keyHint:"Stored locally and masked when read.",model:"Model name",installModel:"Download this language pair",testConn:"Test selected engine",threads:"Total concurrent API requests",threadsHint:"Usually 4–8 is enough. Higher values may trigger rate limits.",
+    outputDir:"Shared output folder (optional)",outputHint:"Leave blank for each source folder. Browser uploads use outputs/LingoPDF in the project. A custom folder also gets a LingoPDF subfolder.",libreoffice:"LibreOffice executable (optional)",libreofficeHint:"Auto-detected when blank. Required for Word / PowerPoint.",settingsNote:"Results are saved separately from your originals. Reference protection is on by default and can be adjusted in the workspace.",reset:"Reset common options",saveSettings:"Save settings",
+    pending:"Ready",converting:"Converting",translating:"Translating",done:"Complete",failed:"Failed",canceled:"Stopped",queued:"Queued",remove:"Remove file",mono:"Translation ↗",bilingual:"Bilingual ↗",unknownPath:"Browser upload · source path unavailable",uploading:"Preparing documents…",saved:"Settings saved",testing:"Testing…",stopping:"Stopping…",picking:"Waiting for selection…",saving:"Saving…",savedCount:"Saved {n} PDF(s)",fallback:"Some browser uploads were saved to outputs/LingoPDF in the project.",noPaths:"Enter source file paths first",sameLang:"Choose different source and target languages",invalidFiles:"Unsupported, empty or oversized files were skipped",newBatch:"Started a fresh document queue",ready:"Ready to translate",
+    finished:"{ok} complete · {failed} failed · {elapsed}",running:"Processed {done} / {total} documents",cancelSummary:"Stopped · {ok} complete · {failed} failed",recovering:"Connection interrupted. Reconnecting…",knownDest:"Destination: each source folder / LingoPDF",unknownDest:"Browser uploads use project outputs / LingoPDF. Choose local files to preserve the source folder.",customDest:"Save all into: ",refsKept:"References protected on {n} page(s)",noRetry:"No retryable sources. Import the files again.",argosMissing:"Argos is not installed. Install the optional requirements dependency.",modelReady:"The local model for this language pair is ready.",modelMissing:"The current language pair needs a local model.",loadFailed:"Could not load: ",savedError:"{n} file(s) could not be saved. Check folder permissions.",resetDone:"Common options restored; API credentials kept",noNew:"Add new files before starting"
+  }
 };
+const t = (key, values = {}) => (I18N[state.uiLang][key] || key).replace(/\{(\w+)\}/g, (_, k) => values[k] ?? `{${k}}`);
+const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sizeText = n => n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+const timeText = n => n < 60 ? `${n.toFixed(1)} ${state.uiLang === "zh" ? "秒" : "s"}` : `${Math.floor(Math.round(n)/60)} ${state.uiLang === "zh" ? "分" : "min"} ${Math.round(n)%60} ${state.uiLang === "zh" ? "秒" : "s"}`;
 
-function t(key, ...args) {
-  const dict = I18N[state.uiLang] || I18N.en;
-  const val = dict[key] ?? I18N.en[key] ?? key;
-  return typeof val === "function" ? val(...args) : val;
+function toast(message, type = "") {
+  const el = $("toast"); el.textContent = message; el.className = `toast ${type}`; el.hidden = false;
+  clearTimeout(el.timer); el.timer = setTimeout(() => el.hidden = true, 5500);
 }
+async function api(path, options = {}) {
+  const response = await fetch(path, options);
+  let data; try { data = await response.json(); } catch { throw Error(`HTTP ${response.status}`); }
+  if (!response.ok) throw Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data));
+  return data;
+}
+const post = (path, body) => api(path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
 
 function applyI18n() {
-  try {
-    document.documentElement.lang = state.uiLang;
-    const dict = I18N[state.uiLang] || I18N.en;
-    document.querySelectorAll("[data-i18n]").forEach((el) => {
-      const key = el.getAttribute("data-i18n");
-      const val = dict[key] || I18N.en[key] || key;
-      if (el.childElementCount > 0) {
-        // i18n 值含 HTML 标签（如 <br>）——说明该元素的完整内容由 i18n 提供，
-        // 直接用 innerHTML 替换全部内容（引擎描述卡片属于此类）
-        if (/<[a-z/][a-z0-9]*>/i.test(val)) {
-          el.innerHTML = val;
-        } else {
-          // 元素有子元素（如 label 包裹 select）——只替换第一个文本节点
-          let firstText = null;
-          for (const node of el.childNodes) {
-            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-              firstText = node;
-              break;
-            }
-          }
-          if (firstText) {
-            // 保留与子元素之间的空格分隔
-            firstText.textContent = val + " ";
-          } else {
-            el.insertBefore(document.createTextNode(val), el.firstChild);
-          }
-        }
-      } else {
-        el.innerHTML = val;
-      }
-    });
-    document.querySelectorAll("[data-i18n-title]").forEach((el) => {
-      el.title = dict[el.getAttribute("data-i18n-title")] || "";
-    });
-    document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
-      el.placeholder = dict[el.getAttribute("data-i18n-ph")] || "";
-    });
-    updateEngineBadge();
-    if (!state.polling && state.files.length === 0) {
-      $("progressText").textContent = t("ready");
-    }
-  } catch (err) {
-    console.error("[i18n applyI18n error]", err);
-  }
+  document.documentElement.lang = state.uiLang;
+  document.title = state.uiLang === "zh" ? "LingoPDF · 文档翻译工作台" : "LingoPDF · Document workspace";
+  document.querySelectorAll("[data-i18n]").forEach(el => el.innerHTML = t(el.dataset.i18n));
+  document.querySelectorAll("[data-i18n-title]").forEach(el => el.title = t(el.dataset.i18nTitle));
+  $("btnSwap").setAttribute("aria-label", t("swap")); $("btnCloseSettings").setAttribute("aria-label", t("close"));
+  $("dropZone").setAttribute("aria-label", t("dropTitle"));
+  updateEngine(); renderFiles(); $("btnToggleLog").textContent = t($("logPanel").hidden ? "expand" : "collapse");
 }
-
-const STATUS_LABEL = {
-  pending: () => t("pending"),
-  converting: () => t("converting"),
-  translating: () => t("translating"),
-  done: () => t("done"),
-  failed: () => t("failed"),
-  canceled: () => t("canceled"),
-};
-
-const ENGINE_LABEL = {
-  openai: () => t("engineApiBadge"),
-  google: () => t("engineGoogleBadge"),
-  argos: () => t("engineArgosBadge"),
-};
-
-/* ── 工具 ─────────────────────────── */
-
-function fmtSize(bytes) {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / 1024 / 1024).toFixed(1) + " MB";
+function updateDestination() {
+  const known = state.files.length && state.files.every(f => f.source_path);
+  const outputDir = state.job ? state.job.output_dir : state.cfg.output_dir;
+  $("destinationHint").textContent = outputDir ? t("customDest") + outputDir + " / LingoPDF" : t(known ? "knownDest" : "unknownDest");
+  if (!$("btnDownloadAll").disabled) $("btnDownloadAll").textContent = t(known && !outputDir ? 'saveAll' : 'saveFallback');
 }
-
-function fmtTime(sec) {
-  return sec >= 60 ? `${Math.floor(sec / 60)}分${Math.round(sec % 60)}秒` : `${sec.toFixed(1)}秒`;
+function updateEngine() {
+  const engine = state.cfg.engine || "google";
+  $("engineName").textContent = t(engine);
+  $("engineHint").textContent = engine === "openai" ? (state.cfg.model || "") : t(engine === "google" ? "googleDesc" : "argosDesc");
+  updateDestination();
 }
-
-function toast(msg, type = "") {
-  const el = $("toast");
-  el.textContent = msg;
-  el.className = `toast ${type}`;
-  el.hidden = false;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => (el.hidden = true), 3200);
+function selectEngine(engine) {
+  state.drawerEngine = engine;
+  document.querySelectorAll(".engine-card").forEach(el => {
+    el.classList.toggle("active", el.dataset.engine === engine);
+    el.setAttribute("aria-pressed", String(el.dataset.engine === engine));
+  });
+  $("openaiFields").hidden = engine !== "openai"; $("argosFields").hidden = engine !== "argos"; $("testConnMsg").hidden = true;
 }
-
-async function api(path, opts = {}) {
-  const resp = await fetch(path, opts);
-  if (!resp.ok) {
-    let detail = resp.statusText;
-    try { detail = (await resp.json()).detail || detail; } catch {}
-    throw new Error(detail);
-  }
-  return resp.json();
+function fillSettings() {
+  const cfg = state.cfg;
+  $("cfgBaseUrl").value = cfg.base_url || ""; $("cfgApiKey").value = cfg.api_key || ""; $("cfgModel").value = cfg.model || "deepseek-chat";
+  $("cfgThread").value = cfg.thread || 4; $("threadVal").textContent = cfg.thread || 4;
+  $("cfgOutputDir").value = cfg.output_dir || ""; $("cfgLibreOffice").value = cfg.libreoffice_path || "";
+  selectEngine(cfg.engine || "google");
 }
-
-/* ── 配置 ─────────────────────────── */
-
 async function loadConfig() {
-  state.cfg = await api("/api/config");
-  $("cfgBaseUrl").value = state.cfg.base_url || "";
-  $("cfgApiKey").value = state.cfg.api_key || "";
-  $("cfgApiKey").dataset.masked = state.cfg.has_api_key ? "1" : "";
-  $("cfgApiKey").placeholder = state.cfg.has_api_key ? t("apiKeySaved") : "sk-...";
-  $("cfgModel").value = state.cfg.model || "";
-  $("cfgThread").value = state.cfg.thread || 4;
-  $("threadVal").textContent = state.cfg.thread || 4;
-  $("cfgOutputDir").value = state.cfg.output_dir || "";
-  $("langIn").value = state.cfg.lang_in || "en";
-  $("langOut").value = state.cfg.lang_out || "zh";
-  state.uiLang = state.cfg.ui_lang || "en";
-  $("uiLang").value = state.uiLang;
-  applyI18n();
-  setEngineUI(state.cfg.engine || "openai");
-  updateEngineBadge();
+  state.cfg = await api("/api/config"); state.uiLang = state.cfg.ui_lang || "zh"; $("uiLang").value = state.uiLang;
+  $("langIn").value = state.cfg.lang_in || "en"; $("langOut").value = state.cfg.lang_out || "zh";
+  $("skipReferences").checked = state.cfg.skip_references !== false; $("dualOutput").checked = !!state.cfg.dual;
+  fillSettings(); applyI18n();
 }
-
-function setEngineUI(engine) {
-  document.querySelectorAll(".engine-card").forEach((c) =>
-    c.classList.toggle("active", c.dataset.engine === engine)
-  );
-  $("openaiFields").hidden = engine !== "openai";
-  $("argosFields").hidden = engine !== "argos";
-}
-
-function updateEngineBadge() {
-  const engine = document.querySelector(".engine-card.active")?.dataset.engine || state.cfg.engine;
-  const badge = $("engineBadge");
-  badge.textContent = `⚙ ${ENGINE_LABEL[engine]?.() || engine}`;
-  badge.className = "engine-badge " + (engine === "openai" ? "is-openai" : engine === "argos" ? "is-argos" : "");
-}
-
-async function saveSettings() {
-  const engine = document.querySelector(".engine-card.active").dataset.engine;
-  // 保存语言方向（也持久化）
-  const payload = {
-    engine,
-    lang_in: $("langIn").value,
-    lang_out: $("langOut").value,
-    model: $("cfgModel").value.trim(),
-    thread: parseInt($("cfgThread").value, 10),
-    output_dir: $("cfgOutputDir").value.trim(),
-  };
-  if ($("cfgBaseUrl").value.trim()) payload.base_url = $("cfgBaseUrl").value.trim();
-  const key = $("cfgApiKey").value;
-  if (key && !key.includes("*")) payload.api_key = key.trim();
-
-  state.cfg = await api("/api/config", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  closeSettings();
-  toast(t("settingsSaved"), "ok");
-  updateEngineBadge();
-}
-
-/* ── 设置抽屉 ─────────────────────────── */
-
+let priorFocus;
 function openSettings() {
-  $("settingsOverlay").hidden = false;
-  $("settingsDrawer").hidden = false;
-  if ((document.querySelector(".engine-card.active")?.dataset.engine) === "argos") refreshArgos();
+  priorFocus = document.activeElement; fillSettings(); $("settingsOverlay").hidden = false; $("settingsDrawer").hidden = false;
+  document.body.style.overflow = "hidden"; $("btnCloseSettings").focus();
+  if (state.drawerEngine === "argos") refreshArgos();
 }
-
 function closeSettings() {
-  $("settingsOverlay").hidden = true;
-  $("settingsDrawer").hidden = true;
+  $("settingsOverlay").hidden = true; $("settingsDrawer").hidden = true; document.body.style.overflow = ""; priorFocus?.focus();
 }
-
+async function saveSettings() {
+  const button = $("btnSaveSettings"); button.disabled = true;
+  try {
+    const payload = {engine:state.drawerEngine, base_url:$("cfgBaseUrl").value.trim(), model:$("cfgModel").value.trim(),
+      thread:Number($("cfgThread").value), output_dir:$("cfgOutputDir").value.trim(), libreoffice_path:$("cfgLibreOffice").value.trim(),
+      lang_in:$("langIn").value, lang_out:$("langOut").value, dual:$("dualOutput").checked, skip_references:$("skipReferences").checked, ui_lang:state.uiLang};
+    const key = $("cfgApiKey").value; if (!key.includes("*")) payload.api_key = key.trim();
+    state.cfg = await post("/api/config", payload); updateEngine(); closeSettings(); toast(t("saved"), "ok");
+  } catch (error) { toast(error.message, "bad"); } finally { button.disabled = false; }
+}
 async function refreshArgos() {
-  const info = await api("/api/engines");
-  const st = info.argos;
-  const el = $("argosStatus");
-  if (!st.library_installed) {
-    el.innerHTML = `<span style="color:var(--yellow)">${t("argosNotInstalled")}</span><br>
-      <span class="small muted">${t("argosRunCmd")}</span>`;
-    $("btnArgosInstall").hidden = true;
-    return;
-  }
-  const hasZh = st.installed.some((p) => p === "en->zh");
-  if (hasZh) {
-    el.innerHTML = `<span style="color:var(--green)">${t("argosReady")}</span>
-      <span class="small muted">${t("argosInstalled", st.installed.join(", "))}</span>`;
-    $("btnArgosInstall").hidden = true;
-  } else {
-    el.innerHTML = `<span style="color:var(--yellow)">${t("argosNotReady")}</span>
-      <span class="small muted">${t("argosDownloadHint")}</span>`;
-    $("btnArgosInstall").hidden = false;
-  }
-}
-
-async function installArgos() {
-  const btn = $("btnArgosInstall");
-  btn.disabled = true;
-  btn.textContent = t("downloading");
   try {
-    const r = await api("/api/engines/argos/install?lang_in=en&lang_out=zh");
-    toast(r.message, r.ok ? "ok" : "bad");
-  } catch (e) {
-    toast(e.message, "bad");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = t("argosDownload");
-    refreshArgos();
-  }
+    const info = await api("/api/engines"); const pair = `${$("langIn").value}->${$("langOut").value}`;
+    const installed = info.argos.library_installed; const ready = info.argos.installed?.includes(pair);
+    $("argosStatus").textContent = t(!installed ? "argosMissing" : ready ? "modelReady" : "modelMissing");
+    $("btnArgosInstall").hidden = !installed || ready;
+  } catch (error) { $("argosStatus").textContent = error.message; }
 }
-
 async function testConnection() {
-  const btn = $("btnTestConn");
-  const msg = $("testConnMsg");
-  btn.disabled = true;
-  btn.textContent = t("testing");
-  msg.hidden = false;
-  msg.className = "test-msg";
-  msg.textContent = t("connecting");
+  const btn = $("btnTestConn"); btn.disabled = true; btn.textContent = t("testing");
+  $("testConnMsg").hidden = false; $("testConnMsg").textContent = t("testing");
   try {
-    const engine = document.querySelector(".engine-card.active").dataset.engine;
-    const payload = {
-      engine,
-      lang_in: $("langIn").value,
-      lang_out: $("langOut").value,
-    };
-    if (engine === "openai") {
-      payload.base_url = $("cfgBaseUrl").value.trim() || state.cfg.base_url;
-      payload.model = $("cfgModel").value.trim() || state.cfg.model;
-      const key = $("cfgApiKey").value;
-      if (key && !key.includes("*")) payload.api_key = key.trim();
-    }
-    const r = await api("/api/test-connection", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    msg.className = "test-msg " + (r.ok ? "ok" : "bad");
-    msg.textContent = (r.ok ? "✓ " : "✗ ") + r.message;
-  } catch (e) {
-    msg.className = "test-msg bad";
-    msg.textContent = "✗ " + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = t("testConn");
-  }
+    const data = await post("/api/test-connection", {engine:state.drawerEngine, base_url:$("cfgBaseUrl").value.trim(),
+      api_key:$("cfgApiKey").value.trim(), model:$("cfgModel").value.trim(), lang_in:$("langIn").value, lang_out:$("langOut").value});
+    $("testConnMsg").className = `test-msg ${data.ok ? "ok" : "bad"}`; $("testConnMsg").textContent = `${data.ok ? "✓" : "×"} ${data.message}`;
+  } catch (error) { $("testConnMsg").className = "test-msg bad"; $("testConnMsg").textContent = error.message; }
+  finally { btn.disabled = false; btn.textContent = t("testConn"); }
 }
 
-/* ── 文件选择 ─────────────────────────── */
-
-function addFiles(fileList) {
-  const ok = [".pdf", ".docx", ".pptx", ".doc", ".ppt"];
-  let skipped = 0;
-  for (const f of fileList) {
-    const ext = "." + f.name.split(".").pop().toLowerCase();
-    if (!ok.includes(ext)) { skipped++; continue; }
-    if (state.files.some((x) => x.name === f.name && x.size === f.size)) continue;
-    // 在原始 File 对象上挂自定义属性，切勿用展开符 {...f} 复制 File
-    // （会丢失 File 的内部 blob 数据与原型，导致 FormData/上传失效）
-    f.detectedLang = null;
-    f.detectStatus = "pending";
-    state.files.push(f);
-  }
-  if (skipped) toast(t("skippedFiles", skipped), "bad");
-  renderFiles();
-  // 延迟启动语言检测，避免阻塞 UI
-  setTimeout(() => detectAllFilesLanguage(), 200);
+function stopPolling() { clearTimeout(state.timer); state.timer = null; }
+function clearJob() {
+  stopPolling(); state.job = null; state.jobId = null; state.logSeq = 0; state.selection++;
+  $("logPanel").replaceChildren(); $("logCard").hidden = true; $("savedPanel").hidden = true;
+  try { sessionStorage.removeItem("lingopdf_job"); } catch {}
 }
-
-/* ── 文件语言检测 ─────────────────────────── */
-
-const LANG_FLAGS = {
-  en: "🇬🇧", zh: "🇨🇳", ja: "🇯🇵", ko: "🇰🇷", ru: "🇷🇺",
-};
-
-async function detectFileLanguage(file, index) {
+function addFiles(files) {
+  if (state.busy) return;
+  const valid = []; let rejected = false;
+  for (const file of files) {
+    if (!/\.(pdf|docx|pptx|doc|ppt)$/i.test(file.name) || file.size <= 0 || file.size > 200 * 1048576) { rejected = true; continue; }
+    const identity = file.source_path || `${file.name}|${file.size}|${file.lastModified || 0}`;
+    if ((!state.job && state.files.some(f => f.identity === identity)) || valid.some(f => f.identity === identity)) continue;
+    valid.push(file instanceof File ? {name:file.name, size:file.size, blob:file, identity} : {...file, identity, source_id:file.id});
+  }
+  if (valid.length) {
+    if (state.job) { clearJob(); state.files = []; toast(t("newBatch")); }
+    state.files.push(...valid); renderFiles();
+  }
+  if (rejected) toast(t("invalidFiles"), "bad");
+}
+async function importPaths() {
+  if (state.busy) return;
+  const paths = $("sourcePaths").value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  if (!paths.length) { toast(t("noPaths"), "bad"); return; }
+  const btn = $("btnImportPaths"); btn.disabled = true; const generation = state.selection;
   try {
-    state.files[index].detectStatus = 'detecting';
-    
-    const formData = new FormData();
-    formData.append('file', file, file.name);
-    
-    const response = await fetch('/api/detect-lang', {
-      method: 'POST',
-      body: formData,
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      state.files[index].detectedLang = result;
-      state.files[index].detectStatus = 'done';
-    } else {
-      console.error('Detect failed:', response.status);
-      state.files[index].detectStatus = 'failed';
-    }
-  } catch (err) {
-    console.error('Detect error:', err);
-    state.files[index].detectStatus = 'failed';
-  } finally {
-    renderFiles();
-  }
+    const data = await post("/api/local-files", {paths});
+    if (generation === state.selection) { addFiles(data.files); $("pathPanel").hidden = true; $("sourcePaths").value = ""; }
+  } catch (error) { toast(error.message, "bad"); } finally { btn.disabled = false; }
 }
-
-async function detectAllFilesLanguage() {
-  for (let i = 0; i < state.files.length; i++) {
-    const file = state.files[i];
-    if (file instanceof File && !file.detectedLang) {
-      detectFileLanguage(file, i); // 不await，并行检测
-    }
-  }
-}
-
-function renderFiles() {
-  const list = $("fileList");
-  list.innerHTML = "";
-  state.files.forEach((f, i) => {
-    const row = document.createElement("div");
-    row.className = "file-row";
-    row.dataset.idx = i;
-    // 语言徽章 — 仅显示已检测的语言或检测中状态
-    let langBadge = "";
-    if (f.detectStatus === 'detecting') {
-      langBadge = `&nbsp;<span class="detected-lang-badge muted">⟳ 检测中</span>`;
-    } else if (f.detectedLang && f.detectedLang.detected) {
-      const flag = LANG_FLAGS[f.detectedLang.detected] || "🌐";
-      const langName = f.detectedLang.detected_name || f.detectedLang.detected;
-      langBadge = `&nbsp;<span class="detected-lang-badge">${flag}${langName}</span>`;
-    }
-    row.innerHTML = `
-      <span class="file-icon">📕</span>
-      <div class="file-info">
-        <div class="file-name">${escapeHtml(f.name)}${langBadge}</div>
-        <div class="file-meta">${fmtSize(f.size)}</div>
-        <div class="file-progress" style="display:none"><div class="file-progress-fill"></div></div>
-      </div>
-      <span class="status-chip status-pending">${t("pending")}</span>
-      <button class="btn-icon" title="${t("remove")}" data-rm="${i}">✕</button>`;
-    list.appendChild(row);
-  });
-  $("filesCard").hidden = state.files.length === 0;
-  $("fileCount").textContent = state.files.length ? `· ${state.files.length} ${t("filesUnit")}` : "";
-  updateStartButton();
-  $("btnClear").disabled = state.files.length === 0;
-}
-
-function updateStartButton() {
-  // 只有真实 File 对象（本轮新选择的文件）才允许发起翻译
-  const hasNew = state.files.some((f) => f instanceof File);
-  $("btnStart").disabled = !hasNew || !!state.polling;
-}
-
-function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
-/* ── 源语言检测 ─────────────────────────── */
-
-const LANG_DISPLAY = {
-  en: "🇬🇧 English",
-  zh: "🇨🇳 Chinese",
-  ja: "🇯🇵 Japanese",
-  ko: "🇰🇷 Korean",
-  ru: "🇷🇺 Russian",
-};
-
-async function detectLang(fileName, fileSize) {
-  try {
-    const fd = new FormData();
-    const file = new Blob([new ArrayBuffer(0)], { type: "application/octet-stream" });
-    // We need the actual file blob, not empty
-    // Let's try the API with the uploaded pdf path instead
-    return null; // will be detected after upload via job_id
-  } catch (e) {
-    logger.error("[detectLang] error:", e);
-    return null;
-  }
-}
-
-/* ── 翻译任务 ─────────────────────────── */
-
-async function startTranslation() {
-  if (!state.files.length) return;
-  const btn = $("btnStart");
-  btn.disabled = true;
-  btn.textContent = t("uploading");
-
-  // 保存当前语言方向
-  await api("/api/config", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ lang_in: $("langIn").value, lang_out: $("langOut").value }),
-  }).catch(() => {});
-
-  const fd = new FormData();
-  state.files.forEach((f) => fd.append("files", f, f.name));
-
-  try {
-    const r = await api("/api/translate", { method: "POST", body: fd });
-    state.jobId = r.job_id;
-    state.logSeq = 0;
-    $("logCard").hidden = false;
-    $("logPanel").innerHTML = "";
-    $("logPanel").classList.remove("collapsed");
-    $("logPanel").hidden = false;
-    $("btnToggleLog").textContent = t("collapse");
-    $("btnCancel").hidden = false;
-    $("btnDownloadAll").hidden = true;
-    setControlsDuringJob(false);
-    startPolling();
-  } catch (e) {
-    toast(e.message, "bad");
-    btn.disabled = false;
-    btn.textContent = t("start");
-  }
-}
-
-function setControlsDuringJob(running) {
-  $("btnCancel").hidden = !running;
-  $("btnClear").disabled = running;
-  $("langIn").disabled = running;
-  $("langOut").disabled = running;
-  $("fileInput").disabled = running;
-  if (!running) {
-    $("btnStart").textContent = t("start");
-    updateStartButton();
-  }
-}
-
-function startPolling() {
-  stopPolling();
-  state.polling = setInterval(pollStatus, 1200);
-  pollStatus();
-}
-
-function stopPolling() {
-  if (state.polling) { clearInterval(state.polling); state.polling = null; }
-}
-
-async function pollStatus() {
-  if (!state.jobId) return;
-  let job;
-  try {
-    job = await api(`/api/jobs/${state.jobId}?since_log=${state.logSeq}`);
-  } catch {
+async function pickLocal() {
+  if (state.busy) return;
+  if (state.picking) {
+    try { await post('/api/local-files/pick-cancel', {}); } catch (error) { toast(error.message, 'bad'); }
     return;
   }
-
-  // 更新文件行
-  job.files.forEach((f, i) => {
-    const row = $(`fileList`).children[i];
-    if (!row) return;
-    const chip = row.querySelector(".status-chip");
-    chip.className = "status-chip status-" + f.status;
-    const meta = row.querySelector(".file-meta");
-    const bar = row.querySelector(".file-progress");
-    if (f.status === "translating") {
-      const pct = Math.min(99, Math.round((f.progress || 0) * 100));
-      chip.textContent = `${t("translating")} ${pct}%`;
-      if (bar) {
-        bar.style.display = "block";
-        bar.querySelector(".file-progress-fill").style.width = Math.max(4, pct) + "%";
-      }
-    } else {
-      chip.textContent = STATUS_LABEL[f.status]?.() || f.status;
-      if (bar) bar.remove();
-    }
-    if (f.status === "done") {
-      const outPaths = f.outputs.map(o => o.name).join(", ");
-      meta.innerHTML = `${fmtSize(f.size)} · ${fmtTime(f.elapsed)} · <span class="out-path">📄 ${escapeHtml(outPaths)}</span>`;
-    } else if (f.status === "failed") {
-      row.classList.add("has-error");
-      meta.innerHTML = `${fmtSize(f.size)} · <span class="err">${escapeHtml(f.error || "Failed")}</span>`;
-    }
-    // 下载按钮
-    let actions = row.querySelector(".file-actions");
-    if (!actions && f.status === "done") {
-      actions = document.createElement("div");
-      actions.className = "file-actions";
-      f.outputs.forEach((o, oi) => {
-        const a = document.createElement("a");
-        a.className = "dl-link";
-        a.href = `/api/jobs/${job.id}/files/${i}/${oi}`;
-        a.download = o.name;
-        a.textContent = o.name.includes("_dual") ? t("dlDual") : t("dlTranslated");
-        actions.appendChild(a);
-      });
-      const rm = row.querySelector("[data-rm]");
-      if (rm) rm.replaceWith(actions);
-    }
-  });
-
-  // 全局进度
-  const p = job.progress;
-  const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
-  const fill = $("globalProgress");
-  fill.style.width = pct + "%";
-  fill.classList.toggle("done-all", job.status === "finished" && pct === 100);
-  $("progressText").textContent =
-    job.status === "running"
-      ? `${t("translating2", p.done, p.total)} · ✅${p.ok} ❌${p.failed}`
-      : job.status === "finished"
-        ? t("finished", p.ok, p.failed, fmtTime(job.elapsed))
-        : STATUS_LABEL[job.status]?.() || job.status;
-
-  // 日志
-  appendLogs(job.logs);
-
-  // 结束
-  if (["finished", "canceled", "failed"].includes(job.status)) {
-    stopPolling();
-    setControlsDuringJob(false);
-    const anyOk = p.ok > 0;
-    $("btnDownloadAll").hidden = !anyOk;
-    appendLogs([{ level: "good", msg: t("jobEnded", p.ok, p.failed) }]);
-    // 完成通知
-    if (p.ok > 0) {
-      toast(state.uiLang === "zh"
-        ? `翻译完成！✅ ${p.ok} 个文件已保存，可点击下载`
-        : `Translation done! ✅ ${p.ok} file(s) saved, click to download`, "ok");
-    }
-  }
+  state.picking = true;
+  updateControls();
+  const generation = state.selection;
+  try { const data = await post("/api/local-files/pick", {}); if (generation === state.selection) addFiles(data.files); }
+  catch (error) { $("pathPanel").hidden = false; $("sourcePaths").focus(); toast(error.message, "bad"); }
+  finally { state.picking = false; updateControls(); }
 }
-
+function renderFiles() {
+  const container = $("fileList"); container.replaceChildren();
+  state.files.forEach((source, i) => {
+    const result = state.job?.files[i]; const status = result?.status || "pending"; const f = result || source;
+    const row = document.createElement("div"); row.className = "file-row";
+    const refText = f.reference_pages ? ` · ${t("refsKept", {n:f.reference_pages})}` : "";
+    const meta = status === "failed" ? `<span class="err">${esc(f.error || t("failed"))}</span>` : `${sizeText(f.size)}${f.elapsed ? ` · ${timeText(f.elapsed)}` : ""}${refText}`;
+    const path = f.source_path || source.source_path;
+    row.innerHTML = `<span class="file-icon">${esc(f.name.split('.').pop().toUpperCase())}</span>
+      <div class="file-info"><div class="file-name" title="${esc(f.name)}">${esc(f.name)}</div><div class="file-meta">${meta}</div>
+      <span class="source-path ${path ? "known" : ""}" title="${esc(path || t("unknownPath"))}">${path ? esc(path) : t("unknownPath")}</span>
+      ${status === "translating" ? `<div class="file-progress"><div class="file-progress-fill" style="width:${Math.max(3,Math.min(99,(f.progress||0)*100))}%"></div></div>` : ""}</div>
+      <span class="status-chip status-${status}">${t(status)}${status === "translating" ? ` ${Math.min(99,Math.round((f.progress||0)*100))}%` : ""}</span>`;
+    if (f.outputs?.length) {
+      const actions = document.createElement("div"); actions.className = "file-actions";
+      f.outputs.forEach((output, oi) => {
+        const link = document.createElement("a"); link.className = "dl-link"; link.href = `/api/jobs/${state.jobId}/files/${i}/${oi}`;
+        link.download = output.name; link.textContent = t(output.name.includes("_dual") ? "bilingual" : "mono"); actions.append(link);
+      }); row.append(actions);
+    } else if (!state.job) {
+      const remove = document.createElement("button"); remove.className = "btn-icon"; remove.textContent = "×";
+      remove.title = t("remove"); remove.setAttribute("aria-label", `${t("remove")} ${f.name}`); remove.disabled = state.busy;
+      remove.addEventListener("click", () => { if (state.busy) return; state.files.splice(i,1); state.selection++; renderFiles(); }); row.append(remove);
+    }
+    container.append(row);
+  });
+  $("fileCount").textContent = state.files.length; $("emptyState").hidden = state.files.length > 0;
+  $("progressPanel").hidden = !state.job; $("resultsBar").hidden = !state.job || state.busy || !state.job.files.some(f => f.outputs?.length);
+  $("btnRetry").hidden = state.busy || !state.job?.files.some(f => ["failed","canceled"].includes(f.status));
+  if (state.job) {
+    const p = state.job.progress; const pct = Math.min(state.busy ? 99 : 100, Math.round((p.fraction ?? p.done / Math.max(p.total,1)) * 100));
+    $("globalProgress").style.width = pct + "%"; $("progressPercent").textContent = pct + "%";
+    $("progressText").textContent = t(state.busy ? "running" : state.job.status === "canceled" ? "cancelSummary" : "finished", {...p, elapsed:timeText(state.job.elapsed || 0)});
+  }
+  updateDestination(); updateControls();
+}
+function updateControls() {
+  const ready = state.files.length > 0 && !state.job && state.files.every(f => f.blob || f.source_id);
+  $("btnStart").disabled = state.busy || state.picking || !ready; $("btnStart").innerHTML = `<span>${t(state.busy ? "uploading" : "start")}</span><span>→</span>`;
+  $("btnStart").hidden = state.busy; $("btnCancel").hidden = !state.busy || !state.jobId;
+  $("btnClear").disabled = state.busy || state.picking || !state.files.length;
+  ["langIn","langOut","btnSwap","fileInput","btnPathImport","btnImportPaths","btnSettings","engineBadge","skipReferences","dualOutput"].forEach(id => $(id).disabled = state.busy || state.picking);
+  $("dropZone").setAttribute("aria-disabled", String(state.busy));
+  $("dropZone").setAttribute("aria-busy", String(state.picking));
+  $("dropZone").querySelector('h3').textContent = t(state.picking ? 'picking' : 'dropTitle');
+  $("dropZone").querySelector('p').textContent = state.picking
+    ? (state.uiLang === 'zh' ? '再次点击这里取消选择' : 'Click here again to cancel selection') : t('dropDesc');
+}
+async function startTranslation() {
+  if (state.busy) return;
+  if (!state.files.length || state.job) { toast(t("noNew"), "bad"); return; }
+  if ($("langIn").value === $("langOut").value) { toast(t("sameLang"), "bad"); return; }
+  state.busy = true; updateControls(); $("btnStart").hidden = false; $("btnStart").textContent = t("uploading");
+  const data = new FormData(); const entries = []; let uploads = 0;
+  for (const file of state.files) {
+    if (file.source_id) entries.push({id:file.source_id});
+    else { data.append("files", file.blob, file.name); entries.push({upload:uploads++}); }
+  }
+  data.append("entries", JSON.stringify(entries)); data.append("lang_in", $("langIn").value); data.append("lang_out", $("langOut").value);
+  data.append("dual", String($("dualOutput").checked)); data.append("skip_references", String($("skipReferences").checked));
+  try {
+    const result = await api("/api/translate", {method:"POST", body:data}); state.jobId = result.job_id; state.logSeq = 0;
+    try { sessionStorage.setItem("lingopdf_job", state.jobId); } catch {}
+    $("logCard").hidden = false; $("logPanel").replaceChildren(); $("logPanel").hidden = false;
+    $("btnToggleLog").textContent = t("collapse"); $("savedPanel").hidden = true; updateControls(); pollStatus();
+  } catch (error) { state.busy = false; toast(error.message, "bad"); updateControls(); }
+}
 function appendLogs(logs) {
-  const panel = $("logPanel");
-  let atBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 30;
-  logs.forEach((l) => {
-    state.logSeq = Math.max(state.logSeq, l.seq);
-    const line = document.createElement("div");
-    line.className = "log-line " + l.level;
-    const tsNum = Number(l.ts);
-    const ts = (tsNum > 0 ? new Date(tsNum * 1000) : new Date()).toLocaleTimeString(
-      state.uiLang === "zh" ? "zh-CN" : "en-US",
-      { hour12: false }
-    );
-    line.innerHTML = `<span class="log-ts">${ts}</span><span class="log-msg">${escapeHtml(l.msg)}</span>`;
-    panel.appendChild(line);
-  });
-  if (atBottom) panel.scrollTop = panel.scrollHeight;
-  while (panel.children.length > 500) panel.removeChild(panel.firstChild);
-}
-
-async function cancelJob() {
-  if (!state.jobId) return;
-  try {
-    await api(`/api/jobs/${state.jobId}/cancel`, { method: "POST" });
-    toast(t("cancelSent"), "ok");
-  } catch (e) {
-    toast(e.message, "bad");
+  const panel = $("logPanel"); const atBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 30;
+  for (const log of logs) {
+    if (Number.isFinite(log.seq)) state.logSeq = Math.max(state.logSeq, log.seq);
+    const row = document.createElement("div"); row.className = `log-line ${log.level || "info"}`;
+    row.innerHTML = `<span class="log-ts">${new Date((log.ts || Date.now()/1000)*1000).toLocaleTimeString(state.uiLang === "zh" ? "zh-CN" : "en-GB",{hour12:false})}</span><span class="log-msg">${esc(log.msg)}</span>`;
+    panel.append(row);
   }
+  while (panel.children.length > 500) panel.firstChild.remove(); if (atBottom) panel.scrollTop = panel.scrollHeight;
 }
-
-/* ── 事件绑定 ─────────────────────────── */
-
-function bindEvents() {
-  // 拖拽
-  const dz = $("dropZone");
-  dz.addEventListener("click", () => !$("fileInput").disabled && $("fileInput").click());
-  $("btnBrowse").addEventListener("click", (e) => { e.stopPropagation(); $("fileInput").click(); });
-  $("fileInput").addEventListener("change", (e) => { addFiles(e.target.files); e.target.value = ""; });
-  ["dragenter", "dragover"].forEach((ev) =>
-    dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("dragover"); })
-  );
-  ["dragleave", "drop"].forEach((ev) =>
-    dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("dragover"); })
-  );
-  dz.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
-
-  // 文件列表
-  $("fileList").addEventListener("click", (e) => {
-    const rm = e.target.closest("[data-rm]");
-    if (!rm) return;
-    if (state.polling) { toast(t("removeBlocked"), "bad"); return; }
-    state.files.splice(parseInt(rm.dataset.rm, 10), 1);
-    renderFiles();
-    if (!state.files.length) $("filesCard").hidden = true;
-  });
-  $("btnClear").addEventListener("click", () => {
-    if (state.polling) return;
-    state.files = [];
-    state.jobId = null;
-    $("btnDownloadAll").hidden = true;
-    renderFiles();
-    $("filesCard").hidden = true;
-  });
-
-  // 翻译
-  $("btnStart").addEventListener("click", startTranslation);
-  $("btnCancel").addEventListener("click", cancelJob);
-  $("btnDownloadAll").addEventListener("click", () => {
-    if (state.jobId) window.location.href = `/api/jobs/${state.jobId}/download-all`;
-  });
-
-  // 语言
-  $("btnSwap").addEventListener("click", () => {
-    const a = $("langIn").value;
-    $("langIn").value = $("langOut").value;
-    $("langOut").value = a;
-  });
-
-  // 设置
-  $("btnSettings").addEventListener("click", openSettings);
-  $("engineBadge").addEventListener("click", openSettings);
-  $("btnCloseSettings").addEventListener("click", closeSettings);
-  $("settingsOverlay").addEventListener("click", closeSettings);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSettings(); });
-  $("btnSaveSettings").addEventListener("click", saveSettings);
-  $("btnResetConfig").addEventListener("click", async () => {
-    if (!confirm(t("resetConfirm"))) return;
-    await api("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ base_url: "", api_key: "", model: "deepseek-chat", engine: "google", thread: 4, dual: false, output_dir: "", ui_lang: "en" }),
-    });
-    await loadConfig();
-    toast(t("resetDone"), "ok");
-  });
-  $("btnTestConn").addEventListener("click", testConnection);
-  $("btnArgosInstall").addEventListener("click", installArgos);
-  $("cfgThread").addEventListener("input", (e) => ($("threadVal").textContent = e.target.value));
-
-  // 引擎卡片选择
-  document.querySelectorAll(".engine-card").forEach((c) =>
-    c.addEventListener("click", () => {
-      setEngineUI(c.dataset.engine);
-      updateEngineBadge();
-      if (c.dataset.engine === "argos") refreshArgos();
-    })
-  );
-
-  // 界面语言切换
-  $("uiLang").addEventListener("change", (e) => {
-    try {
-      state.uiLang = e.target.value;
-      try { localStorage.setItem("linguapdf_lang", state.uiLang); } catch {}
-      applyI18n();
-      // 更新动态 placeholder（applyI18n 不处理 #cfgApiKey 的动态 placeholder）
-      $("cfgApiKey").placeholder = state.cfg.has_api_key ? t("apiKeySaved") : "sk-...";
-      // 清空已有日志面板（旧日志是旧语言生成的，保留会混乱）
-      const panel = $("logPanel");
-      if (panel) panel.innerHTML = "";
-      toast(state.uiLang === "zh" ? "已切换至中文" : "Switched to English", "ok");
-      (async () => {
-        try {
-          const resp = await fetch("/api/config", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ui_lang: state.uiLang }),
-          });
-          if (resp.ok) state.cfg = await resp.json();
-        } catch {}
-      })();
-    } catch (err) {
-      toast("Error: " + err.message, "bad");
-      console.error("[i18n switch error]", err);
+async function pollStatus() {
+  if (!state.jobId || state.polling) return; state.polling = true; const id = state.jobId;
+  try {
+    const job = await api(`/api/jobs/${id}?since_log=${state.logSeq}`); if (id !== state.jobId) return;
+    state.job = job; state.busy = ["queued","running","canceling"].includes(job.status); appendLogs(job.logs || []); renderFiles();
+    if (!state.busy) { stopPolling(); $("btnCancel").disabled = false; $("btnCancel").textContent = t("cancel"); if (job.progress.ok) toast(t("resultsReady"), "ok"); }
+  } catch (error) {
+    if (id === state.jobId) {
+      $("progressText").textContent = t("recovering");
+      if (error.message.includes("不存在") || error.message.includes("404")) { state.busy = false; clearJob(); renderFiles(); toast(error.message, "bad"); }
     }
-  });
-
-  // 日志
-  $("btnToggleLog").addEventListener("click", () => {
-    const p = $("logPanel");
-    p.classList.toggle("collapsed");
-    p.hidden = p.classList.contains("collapsed");
-    $("btnToggleLog").textContent = p.hidden ? t("expand") : t("collapse");
-  });
+  } finally { state.polling = false; if (state.busy && state.jobId === id) state.timer = setTimeout(pollStatus,1200); }
 }
-
-/* ── 恢复最近任务（页面刷新后不丢失进行中/刚完成的任务）──────── */
-
-async function resumeLatestJob() {
+async function cancelJob() {
+  if (!state.jobId) return; const btn = $("btnCancel"); btn.disabled = true; btn.textContent = t("stopping");
+  try { await post(`/api/jobs/${state.jobId}/cancel`,{}); }
+  catch (error) { toast(error.message,"bad"); btn.disabled = false; btn.textContent = t("cancel"); }
+}
+function retryFiles() {
+  const retry = state.files.filter((_, i) => ["failed","canceled"].includes(state.job?.files[i].status));
+  if (!retry.length || retry.some(f => !f.blob && !f.source_id)) { toast(t("noRetry"),"bad"); return; }
+  clearJob(); state.files = retry; renderFiles(); startTranslation();
+}
+async function saveAll() {
+  const jobId = state.jobId;
+  const btn = $("btnDownloadAll"); btn.disabled = true; btn.textContent = t("saving");
   try {
-    const jobs = await api("/api/jobs");
-    // 只恢复正在运行的任务，已完成的不再显示
-    const latest = jobs.find((j) =>
-      ["queued", "running"].includes(j.status) &&
-      Date.now() / 1000 - j.created_at < 7200
-    );
-    if (!latest) return;
-    const job = await api(`/api/jobs/${latest.id}`);
-    state.files = job.files.map((f) => ({ name: f.name, size: f.size }));
-    state.jobId = job.id;
-    state.logSeq = 0;
-    renderFiles();
-    $("filesCard").hidden = false;
-    $("logCard").hidden = false;
-    setControlsDuringJob(true);
-    startPolling();
-  } catch {
-    /* 静默失败 */
-  }
+    const result = await post(`/api/jobs/${jobId}/save-all`,{});
+    if (jobId !== state.jobId) return;
+    const panel = $("savedPanel"); panel.hidden = false; panel.replaceChildren();
+    const title = document.createElement("strong"); title.textContent = t("savedCount",{n:result.saved.length}); panel.append(title);
+    for (const folder of result.folders) { const line = document.createElement("p"); line.textContent = folder; panel.append(line); }
+    if (result.saved.some(f => f.fallback)) { const line = document.createElement("p"); line.textContent = t("fallback"); panel.append(line); }
+    for (const error of result.errors) { const line = document.createElement("p"); line.className = "err"; line.textContent = `${error.name}: ${error.error}`; panel.append(line); }
+    toast(result.errors.length ? t("savedError",{n:result.errors.length}) : t("savedCount",{n:result.saved.length}), result.errors.length ? "bad" : "ok");
+  } catch (error) { toast(error.message,"bad"); } finally { btn.disabled = false; updateDestination(); }
+}
+async function resumeJob() {
+  try {
+    const jobs = await api("/api/jobs"); let remembered; try { remembered = sessionStorage.getItem("lingopdf_job"); } catch {}
+    const latest = jobs.find(j => j.id === remembered) || jobs.find(j => ["queued","running","canceling"].includes(j.status)); if (!latest) return;
+    const job = await api(`/api/jobs/${latest.id}`); state.jobId = job.id;
+    state.files = job.files.map(f => ({...f, identity:f.source_path || f.name, source_id:f.source_id})); state.job = job;
+    $("langIn").value = job.lang_in; $("langOut").value = job.lang_out;
+    $("dualOutput").checked = !!job.dual; $("skipReferences").checked = job.skip_references !== false;
+    state.busy = ["queued","running","canceling"].includes(job.status); $("logCard").hidden = false; renderFiles(); pollStatus();
+  } catch (error) { toast(t("loadFailed") + error.message,"bad"); }
 }
 
-/* ── 启动 ─────────────────────────── */
-
-bindEvents();
-loadConfig()
-  .catch((e) => toast(t("configLoadFailed") + e.message, "bad"))
-  .finally(resumeLatestJob);
-
-/* ── 浏览器关闭即关服务 ─────────────────────────── */
-// 原理: 页面可见时定期发心跳，页面关闭/隐藏超过阈值则触发 shutdown
-// 刷新页面不会误关（刷新会立即重新加载、心跳恢复）
-
-let heartbeatTimer = null;
-let lastHeartbeat = Date.now();
-let shutdownTriggered = false;
-
-function startHeartbeat() {
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
-  heartbeatTimer = setInterval(() => {
-    fetch("/api/heartbeat", { method: "POST" }).catch(() => {});
-    lastHeartbeat = Date.now();
-  }, 2000);
-}
-
-function triggerShutdown() {
-  if (shutdownTriggered) return;
-  shutdownTriggered = true;
-  // sendBeacon 在页面卸载时仍能可靠发送
-  navigator.sendBeacon("/api/shutdown");
-}
-
-// 页面即将关闭 → 通知后端关闭
-window.addEventListener("beforeunload", () => {
-  // 只有真正关闭才触发，刷新时 beforeunload 也会触发但 sendBeacon 会被后端刷新覆盖
-  triggerShutdown();
+$("dropZone").addEventListener("click", pickLocal);
+$("dropZone").addEventListener("keydown", event => { if (["Enter"," "].includes(event.key)) { event.preventDefault(); if (!event.repeat && !state.busy) pickLocal(); } });
+$("fileInput").addEventListener("change", event => { addFiles(event.target.files); event.target.value = ""; });
+["dragenter","dragover"].forEach(name => $("dropZone").addEventListener(name, event => { event.preventDefault(); if (!state.busy) $("dropZone").classList.add("dragover"); }));
+["dragleave","drop"].forEach(name => $("dropZone").addEventListener(name, event => { event.preventDefault(); $("dropZone").classList.remove("dragover"); }));
+$("dropZone").addEventListener("drop", event => addFiles(event.dataTransfer.files));
+$("btnPathImport").addEventListener("click", () => { $("pathPanel").hidden = !$("pathPanel").hidden; if (!$("pathPanel").hidden) $("sourcePaths").focus(); });
+$("btnImportPaths").addEventListener("click", importPaths);
+$("btnClear").addEventListener("click", () => { if (state.busy) return; clearJob(); state.files = []; renderFiles(); });
+$("btnStart").addEventListener("click", startTranslation); $("btnCancel").addEventListener("click", cancelJob);
+$("btnRetry").addEventListener("click", retryFiles); $("btnDownloadAll").addEventListener("click", saveAll);
+$("btnZip").addEventListener("click", () => { if (state.jobId) window.location.href = `/api/jobs/${state.jobId}/download-all`; });
+$("btnSwap").addEventListener("click", () => { const source = $("langIn").value; $("langIn").value = $("langOut").value; $("langOut").value = source; });
+$("btnSettings").addEventListener("click", openSettings); $("engineBadge").addEventListener("click", openSettings);
+$("btnCloseSettings").addEventListener("click", closeSettings); $("settingsOverlay").addEventListener("click", closeSettings);
+$("btnSaveSettings").addEventListener("click", saveSettings); $("btnTestConn").addEventListener("click", testConnection);
+$("cfgThread").addEventListener("input", event => $("threadVal").textContent = event.target.value);
+document.querySelectorAll(".engine-card").forEach(card => card.addEventListener("click", () => { selectEngine(card.dataset.engine); if (state.drawerEngine === "argos") refreshArgos(); }));
+$("btnResetConfig").addEventListener("click", async () => {
+  try { state.cfg = await post("/api/config",{engine:"google",thread:4,dual:false,skip_references:true,output_dir:"",libreoffice_path:""});
+    $("skipReferences").checked = true; $("dualOutput").checked = false; fillSettings(); updateEngine(); toast(t("resetDone"),"ok"); }
+  catch (error) { toast(error.message,"bad"); }
 });
-
-// 页面隐藏（切到其他标签/最小化浏览器）→ 不立即关，但停止心跳
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    // 重新可见 → 恢复心跳，取消 shutdown 标记
-    shutdownTriggered = false;
-    startHeartbeat();
+$("btnArgosInstall").addEventListener("click", async () => {
+  const btn = $("btnArgosInstall"); btn.disabled = true;
+  try { const result = await api(`/api/engines/argos/install?lang_in=${$("langIn").value}&lang_out=${$("langOut").value}`,{method:"POST"}); toast(result.message,result.ok?"ok":"bad"); await refreshArgos(); }
+  catch (error) { toast(error.message,"bad"); } finally { btn.disabled = false; }
+});
+$("uiLang").addEventListener("change", async () => { state.uiLang = $("uiLang").value; applyI18n(); try { state.cfg = await post("/api/config",{ui_lang:state.uiLang}); } catch (error) { toast(error.message,"bad"); } });
+$("btnToggleLog").addEventListener("click", () => { $("logPanel").hidden = !$("logPanel").hidden; $("btnToggleLog").textContent = t($("logPanel").hidden ? "expand" : "collapse"); });
+document.addEventListener("keydown", event => {
+  if ($("settingsDrawer").hidden) return;
+  if (event.key === "Escape") { event.preventDefault(); closeSettings(); }
+  if (event.key === "Tab") {
+    const focusable = [...$("settingsDrawer").querySelectorAll('button,input,select,textarea')].filter(el => !el.disabled && el.getClientRects().length);
+    const first = focusable[0], last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   }
 });
-
-startHeartbeat();
+loadConfig().then(resumeJob).catch(error => toast(t("loadFailed") + error.message,"bad"));
+// Switching tabs never stops work. Actual page close requests a deferred shutdown.
+const heartbeat = () => fetch('/api/heartbeat',{method:'POST'}).catch(() => {}); heartbeat(); setInterval(heartbeat,2000);
+window.addEventListener('pagehide', event => { if (!event.persisted && !state.busy && !state.picking) navigator.sendBeacon('/api/shutdown'); });

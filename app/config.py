@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
-CONFIG_DIR = Path.home() / ".linguapdf"
+CONFIG_DIR = Path(os.environ.get("LINGO_CONFIG_DIR", str(Path.home() / ".linguapdf")))
 CONFIG_FILE = CONFIG_DIR / "config.json"
+_CONFIG_LOCK = threading.RLock()
 
 # 支持的翻译引擎
 ENGINES = ("openai", "google", "argos")
@@ -29,9 +31,10 @@ DEFAULTS: dict[str, Any] = {
     "lang_out": "zh",
     "thread": 4,                 # 翻译并发数
     "dual": False,               # 是否额外输出双语对照版
+    "skip_references": True,
     "output_dir": "",            # 空 = 源文件原路径
     "libreoffice_path": "",      # 空 = 自动检测
-    "ui_lang": "en",             # 界面语言: en | zh
+    "ui_lang": "zh",             # 界面语言: en | zh
 }
 
 # 允许写入配置文件的键（防止任意注入）
@@ -80,20 +83,21 @@ def load_config() -> dict[str, Any]:
 
 def save_config(updates: dict[str, Any]) -> dict[str, Any]:
     """合并写入配置，返回最新配置。"""
-    cfg = load_config()
-    cfg.update({k: v for k, v in updates.items() if k in _ALLOWED_KEYS})
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(
-        json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-    return cfg
+    with _CONFIG_LOCK:
+        cfg = load_config()
+        cfg.update({k: v for k, v in updates.items() if k in _ALLOWED_KEYS})
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        temp = CONFIG_FILE.with_suffix('.tmp')
+        temp.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+        temp.replace(CONFIG_FILE)
+        return cfg
 
 
 def masked(cfg: dict[str, Any]) -> dict[str, Any]:
     """返回给前端的脱敏视图：API Key 只保留末 4 位。"""
     out = dict(cfg)
     key = str(out.get("api_key", ""))
-    out["api_key"] = ("*" * max(0, len(key) - 4) + key[-4:]) if key else ""
+    out["api_key"] = ("********" + (key[-4:] if len(key) > 4 else "")) if key else ""
     out["has_api_key"] = bool(key)
     out["config_file"] = str(CONFIG_FILE)
     return out

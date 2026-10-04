@@ -18,5 +18,5 @@ import uvicorn
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8377
-    print(f"\n  🌐 LingoPDF 已启动: http://127.0.0.1:{port}\n")
+    print(f"\n  LingoPDF: http://127.0.0.1:{port}\n")
     uvicorn.run("app.main:app", host="127.0.0.1", port=port, log_level="warning")

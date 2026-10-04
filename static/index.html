@@ -1,191 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LingoPDF — Batch PDF Translator</title>
-  <link rel="icon" href="favicon.ico" type="image/x-icon">
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="theme-color" content="#127466">
+  <title>LingoPDF · 文档翻译工作台</title><link rel="icon" href="favicon.svg?v=20261004" type="image/svg+xml"><link rel="alternate icon" href="app-icon.ico?v=20261004"><link rel="stylesheet" href="style.css?v=20261004">
 </head>
 <body>
-  <div class="bg-glow bg-glow-1"></div>
-  <div class="bg-glow bg-glow-2"></div>
-
-  <!-- 顶栏 -->
   <header class="topbar">
-    <div class="brand">
-      <span class="brand-logo">🌐</span>
-      <div>
-        <h1>LingoPDF</h1>
-        <p class="brand-sub" data-i18n="tagline">Batch PDF Translation · Layout Preserved · API / Free / Offline</p>
-      </div>
-    </div>
-    <div class="topbar-actions">
-      <select id="uiLang" class="ui-lang-select" title="Interface language">
-        <option value="en">English</option>
-        <option value="zh">中文</option>
-      </select>
-      <span id="engineBadge" class="engine-badge" data-i18n-title="clickToChange">API Translation</span>
-      <button id="btnSettings" class="btn btn-ghost">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:5px"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span data-i18n="Settings">Settings</span>
-      </button>
-    </div>
+    <a class="brand" href="/" aria-label="LingoPDF"><span class="brand-logo"><img src="favicon.svg?v=20261004" width="44" height="44" alt=""></span><span>Lingo<span class="brand-light">PDF</span><small data-i18n="brandSub">文档翻译工作台</small></span></a>
+    <nav class="topbar-actions" aria-label="App controls"><span class="local-badge"><i></i><span data-i18n="localService">本机运行</span></span><select id="uiLang" aria-label="Interface language"><option value="zh">中文</option><option value="en">English</option></select><button id="btnSettings" class="btn btn-ghost"><span>☷</span><span data-i18n="settings">设置</span></button></nav>
   </header>
-
   <main class="container">
-    <!-- 拖拽上传区 -->
-    <section id="dropZone" class="drop-zone">
-      <input type="file" id="fileInput" multiple accept=".pdf,.docx,.pptx,.doc,.ppt" hidden>
-      <div class="drop-inner">
-        <div class="drop-icon">📄</div>
-        <h2><span data-i18n="dropHere">Drop files here, or</span> <span class="link" id="btnBrowse" data-i18n="browse">browse files</span></h2>
-        <p class="drop-hint">
-          <span data-i18n="dropHint1">Supports PDF / DOCX / PPTX batch upload · Max 200MB per file</span><br>
-          <span data-i18n="dropHint2">DOCX/PPTX requires LibreOffice installed</span>
-        </p>
-      </div>
-    </section>
-
-    <!-- 语言方向 + 开始 -->
-    <section class="action-bar card">
-      <div class="lang-pair">
-        <label data-i18n="sourceLang">Source
-          <select id="langIn">
-            <option value="en">English</option>
-            <option value="ja">日本語</option>
-            <option value="ko">한국어</option>
-            <option value="fr">Français</option>
-            <option value="de">Deutsch</option>
-            <option value="ru">Русский</option>
-            <option value="es">Español</option>
-            <option value="zh">中文</option>
-          </select>
-        </label>
-        <button id="btnSwap" class="btn-icon" data-i18n-title="swapLangs">⇄</button>
-        <label data-i18n="targetLang">Target
-          <select id="langOut">
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-            <option value="ja">日本語</option>
-            <option value="ko">한국어</option>
-            <option value="fr">Français</option>
-            <option value="de">Deutsch</option>
-            <option value="ru">Русский</option>
-            <option value="es">Español</option>
-          </select>
-        </label>
-      </div>
-      <div class="action-buttons">
-        <button id="btnClear" class="btn btn-ghost" disabled data-i18n="clear">Clear</button>
-        <button id="btnDownloadAll" class="btn btn-ghost" hidden data-i18n="downloadAll">⬇ Download All</button>
-        <button id="btnStart" class="btn btn-primary" disabled data-i18n="start">▶ Start Translation</button>
-        <button id="btnCancel" class="btn btn-danger" hidden data-i18n="cancel">■ Cancel</button>
-      </div>
-    </section>
-
-    <!-- 文件列表 -->
-    <section class="card files-card" id="filesCard" hidden>
-      <div class="files-head">
-        <h3><span data-i18n="fileList">File List</span> <span id="fileCount" class="muted"></span></h3>
-        <div class="progress-summary">
-          <div class="progress-track"><div id="globalProgress" class="progress-fill"></div></div>
-          <span id="progressText" class="muted" data-i18n="ready">Ready</span>
-        </div>
-      </div>
-      <div id="fileList" class="file-list"></div>
-    </section>
-
-    <!-- 日志 -->
-    <section class="card log-card" id="logCard" hidden>
-      <div class="log-head">
-        <h3 data-i18n="runLog">Run Log</h3>
-        <button id="btnToggleLog" class="btn btn-ghost btn-sm" data-i18n="collapse">Collapse</button>
-      </div>
-      <div id="logPanel" class="log-panel"></div>
-    </section>
-
-    <footer class="footer">
-      <span data-i18n="footerText">Layout preserved by local detection model · Switch engines anytime · API Key stored locally only</span>
-    </footer>
+    <section class="hero"><div><div class="eyebrow"><span class="tiny-line"></span>YOUR DOCUMENT, EVERY LANGUAGE</div><h1 data-i18n="heroTitle">让语言，<span>不再是阅读的边界。</span></h1><p data-i18n="heroDesc">批量翻译论文与文档。保留排版，也保留你的阅读节奏。</p></div><div class="hero-art" aria-hidden="true"><div class="art-dots"></div><div class="paper paper-back"><div class="paper-label">EN</div><b>Research</b><div class="paper-lines"></div><div class="paper-chart"></div></div><div class="paper paper-front"><div class="paper-label">中文</div><b>研究，让理解发生。</b><div class="paper-lines"></div><div class="paper-chart"></div><span class="paper-check">✓</span></div><span class="art-spark">✦</span></div></section>
+    <div class="workspace"><div class="workspace-main">
+      <section class="card upload-card"><div class="section-head"><h2><span class="step">01</span><span data-i18n="addDocuments">添加文档</span></h2><span class="muted small">PDF · DOCX · PPTX</span></div>
+        <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="Upload documents"><input type="file" id="fileInput" multiple accept=".pdf,.docx,.pptx,.doc,.ppt" hidden><div class="upload-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M12 17v-5m-3 3 3-3 3 3"/></svg></div><h3 data-i18n="dropTitle">把文档拖到这里</h3><p data-i18n="dropDesc">或点击选择本地文件 · 每个文件不超过 200 MB</p><span class="format-tags"><span>PDF</span><span>Word</span><span>PowerPoint</span></span></div>
+        <div class="import-tools"><button id="btnPathImport" class="text-button" data-i18n="pathImport">按原路径导入 ↗</button></div><p class="input-note"><span class="note-dot"></span><span data-i18n="pathNote">点击选择会记住原目录；浏览器拖放不会提供真实路径。</span></p>
+        <div id="pathPanel" class="path-panel" hidden><label for="sourcePaths" data-i18n="pathLabel">粘贴原文件的完整路径，每行一个</label><textarea id="sourcePaths" rows="3" spellcheck="false" placeholder="C:\Documents\paper.pdf"></textarea><div class="path-panel-foot"><span class="muted small" data-i18n="pathTip">可直接从文件资源管理器“复制文件地址”。</span><button id="btnImportPaths" class="btn btn-primary btn-sm" data-i18n="import">导入文件</button></div></div>
+      </section>
+      <section class="card files-card"><div class="section-head"><h2><span class="step">02</span><span data-i18n="queue">文档队列</span><span id="fileCount" class="count">0</span></h2><button id="btnClear" class="text-button" disabled data-i18n="clear">清空列表</button></div><div id="emptyState" class="empty-state"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 7h16v13H4zM7 4h10M8 11h8M8 15h5"/></svg><strong data-i18n="emptyTitle">还没有待翻译的文档</strong><span data-i18n="emptyDesc">添加文件后，在右侧选择语言并开始翻译。</span></div><div id="fileList" class="file-list"></div><div id="progressPanel" class="progress-panel" hidden><div class="progress-label"><span id="progressText" role="status"></span><span id="progressPercent">0%</span></div><div class="progress-track"><div id="globalProgress" class="progress-fill"></div></div></div><div id="resultsBar" class="results-bar" hidden><div><b data-i18n="resultsReady">译文已就绪</b><p data-i18n="resultsHint">保存到各原目录的 LingoPDF 子文件夹。</p></div><div class="result-buttons"><button id="btnZip" class="btn btn-ghost btn-sm" data-i18n="downloadZip">下载文件 / ZIP</button><button id="btnDownloadAll" class="btn btn-primary btn-sm" data-i18n="saveAll">下载全部到原目录</button></div></div><div id="savedPanel" class="saved-panel" role="status" hidden></div></section>
+      <section id="logCard" class="card log-card" hidden><div class="section-head"><h2><span class="activity-dot"></span><span data-i18n="activity">运行记录</span></h2><button id="btnToggleLog" class="text-button" data-i18n="collapse">收起</button></div><div id="logPanel" class="log-panel"></div></section>
+    </div><aside class="workspace-side">
+      <section class="card translation-card"><div class="section-head"><h2><span class="step">03</span><span data-i18n="translateSettings">翻译选项</span></h2></div><div class="language-fields"><label for="langIn" data-i18n="sourceLang">源语言</label><select id="langIn"><option value="en">English</option><option value="zh">中文</option><option value="ja">日本語</option><option value="ko">한국어</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="ru">Русский</option><option value="es">Español</option></select><div class="swap-line"><span></span><button id="btnSwap" class="btn-icon" data-i18n-title="swap" aria-label="交换语言">↓↑</button><span></span></div><label for="langOut" data-i18n="targetLang">目标语言</label><select id="langOut"><option value="zh">中文</option><option value="en">English</option><option value="ja">日本語</option><option value="ko">한국어</option><option value="fr">Français</option><option value="de">Deutsch</option><option value="ru">Русский</option><option value="es">Español</option></select></div>
+        <div class="engine-summary"><span class="field-label" data-i18n="engine">翻译引擎</span><button id="engineBadge" class="engine-badge" data-i18n-title="engineChange"><span id="engineName">Google 免费</span><span>↗</span></button><span id="engineHint" class="small muted"></span></div><div class="toggle-options"><label class="toggle-row"><span><b data-i18n="skipRefs">参考文献保留原文</b><small data-i18n="skipRefsHint">自动保护文献区域，正文照常翻译</small></span><input id="skipReferences" type="checkbox" checked><span class="switch"></span></label><label class="toggle-row"><span><b data-i18n="dual">双语对照 PDF</b><small data-i18n="dualHint">额外生成原文与译文交替页</small></span><input id="dualOutput" type="checkbox"><span class="switch"></span></label></div><div id="destinationHint" class="destination-hint"></div><button id="btnStart" class="btn btn-primary btn-start" disabled><span data-i18n="start">开始翻译</span><span>→</span></button><button id="btnCancel" class="btn btn-danger btn-block" hidden data-i18n="cancel">停止翻译</button><button id="btnRetry" class="text-button retry-button" hidden data-i18n="retry">重试失败 / 已停止的文件</button><p class="start-note" data-i18n="startNote">保留公式、图表与双栏排版</p></section>
+      <section class="tips-card"><div class="tip-icon">✦</div><h3 data-i18n="tipTitle">为专注阅读而设计</h3><p data-i18n="tipBody">论文推荐 API 引擎；日常文档可使用 Google 免费翻译。Word 与 PowerPoint 需要 LibreOffice。</p><div class="tip-footer"><span data-i18n="tipFooter">原文件始终保留</span><span>↗</span></div></section>
+    </aside></div><footer class="footer"><span>LingoPDF <span class="footer-dot">·</span><span data-i18n="footer">跨越语言，保留思考。</span></span><span data-i18n="privacy">密钥仅存本机 · 联网引擎会发送待译正文</span></footer>
   </main>
-
-  <!-- 设置抽屉 -->
-  <div id="settingsOverlay" class="overlay" hidden></div>
-  <aside id="settingsDrawer" class="drawer" hidden>
-    <div class="drawer-head">
-      <h3 data-i18n="settingsTitle">⚙ Translation Settings</h3>
-      <button id="btnCloseSettings" class="btn-icon" data-i18n-title="close">✕</button>
-    </div>
-
-    <div class="drawer-body">
-      <div class="field">
-        <label data-i18n="engineLabel">Translation Engine</label>
-        <div id="engineCards" class="engine-cards">
-          <div class="engine-card" data-engine="openai">
-            <div class="engine-title">🚀 <span data-i18n="engineApi">API Translation</span></div>
-            <div class="engine-desc" data-i18n="engineApiDesc">OpenAI-compatible API<br>Highest quality · Requires API Key</div>
-            <span class="engine-tag" data-i18n="recommended">Recommended</span>
-          </div>
-          <div class="engine-card" data-engine="google">
-            <div class="engine-title">🆓 <span data-i18n="engineGoogle">Google Free</span></div>
-            <div class="engine-desc" data-i18n="engineGoogleDesc">Free web API<br>No Key needed · Requires internet</div>
-          </div>
-          <div class="engine-card" data-engine="argos">
-            <div class="engine-title">🔌 <span data-i18n="engineLocal">Local Offline</span></div>
-            <div class="engine-desc" data-i18n="engineLocalDesc">Argos local model<br>Works offline · Medium quality</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- openai 专属 -->
-      <div id="openaiFields" hidden>
-        <div class="field">
-          <label data-i18n="apiBaseUrl">API Base URL</label>
-          <input type="text" id="cfgBaseUrl" placeholder="https://api.deepseek.com (auto-appends /v1)">
-        </div>
-        <div class="field">
-          <label>API Key <span class="muted" data-i18n="apiKeyHint">(stored locally only, never uploaded)</span></label>
-          <input type="password" id="cfgApiKey" placeholder="sk-..." autocomplete="off">
-        </div>
-        <div class="field">
-          <label data-i18n="modelName">Model Name</label>
-          <input type="text" id="cfgModel" placeholder="deepseek-chat">
-        </div>
-        <button id="btnTestConn" class="btn btn-ghost btn-block" data-i18n="testConn">🔌 Test Connection</button>
-        <p id="testConnMsg" class="test-msg" hidden></p>
-      </div>
-
-      <!-- argos 专属 -->
-      <div id="argosFields" hidden>
-        <div class="argos-status card-inset">
-          <div id="argosStatus" class="muted" data-i18n="argosChecking">Checking local model status...</div>
-          <button id="btnArgosInstall" class="btn btn-ghost btn-sm" hidden data-i18n="argosDownload">⬇ Download en→zh model (~250MB, one-time)</button>
-        </div>
-        <p class="muted small" data-i18n="argosHint">Once installed, the local model runs fully offline. Quality is lower than API but sufficient for everyday documents.</p>
-      </div>
-
-      <div class="field">
-        <label data-i18n="threadLabel">Concurrent Threads <span class="muted" data-i18n="threadHint">(API engine concurrency)</span></label>
-        <input type="range" id="cfgThread" min="1" max="16" value="4">
-        <span id="threadVal" class="muted">4</span>
-      </div>
-
-      <div class="field">
-        <label data-i18n="outputDirLabel">Output Directory <span class="muted" data-i18n="outputDirHint">(empty = same folder as source file)</span></label>
-        <input type="text" id="cfgOutputDir" data-i18n-ph="outputDirPh" placeholder="Leave empty for source folder">
-      </div>
-    </div>
-
-    <div class="drawer-foot">
-      <button id="btnResetConfig" class="btn btn-ghost" data-i18n="resetDefaults">Reset Defaults</button>
-      <button id="btnSaveSettings" class="btn btn-primary" data-i18n="saveSettings">Save Settings</button>
-    </div>
-  </aside>
-
-  <!-- Toast -->
-  <div id="toast" class="toast" hidden></div>
-
-  <script src="app.js?v=2024"></script>
-</body>
-</html>
+  <div id="settingsOverlay" class="overlay" hidden></div><aside id="settingsDrawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" hidden><div class="drawer-head"><div><div class="eyebrow">PREFERENCES</div><h2 id="drawerTitle" data-i18n="settingsTitle">让翻译适合你</h2></div><button id="btnCloseSettings" class="btn-icon" data-i18n-title="close" aria-label="关闭设置">×</button></div><div class="drawer-body">
+    <div class="field"><label data-i18n="engine">翻译引擎</label><div id="engineCards" class="engine-cards"><button class="engine-card" data-engine="google"><span class="engine-card-icon">G</span><span><b data-i18n="google">Google 免费</b><small data-i18n="googleDesc">无需密钥 · 需要联网</small></span><i></i></button><button class="engine-card" data-engine="openai"><span class="engine-card-icon">✦</span><span><b data-i18n="openai">API 翻译</b><small data-i18n="apiDesc">学术阅读推荐 · OpenAI 兼容接口</small></span><i></i></button><button class="engine-card" data-engine="argos"><span class="engine-card-icon">⌁</span><span><b data-i18n="argos">本地离线</b><small data-i18n="argosDesc">Argos 本地模型 · 无需联网</small></span><i></i></button></div></div>
+    <div id="openaiFields" hidden><div class="field"><label for="cfgBaseUrl">API Base URL</label><input id="cfgBaseUrl" type="url" placeholder="https://api.deepseek.com"></div><div class="field"><label for="cfgApiKey">API Key</label><input id="cfgApiKey" type="password" placeholder="sk-…" autocomplete="off"><small class="muted" data-i18n="keyHint">仅存本机，读取时显示掩码。</small></div><div class="field"><label for="cfgModel" data-i18n="model">模型名称</label><input id="cfgModel" placeholder="deepseek-chat"></div></div><div id="argosFields" class="card-inset" hidden><p id="argosStatus" class="small muted"></p><button id="btnArgosInstall" class="btn btn-secondary btn-sm" hidden data-i18n="installModel">下载当前语言对模型</button></div><button id="btnTestConn" class="btn btn-secondary btn-block" data-i18n="testConn">测试当前引擎</button><p id="testConnMsg" class="test-msg" role="status" hidden></p>
+    <div class="field range-field"><label for="cfgThread"><span data-i18n="threads">并发翻译</span><output id="threadVal">4</output></label><input id="cfgThread" type="range" min="1" max="16" value="4"><small class="muted" data-i18n="threadsHint">通常 4–8 即可；过高可能触发服务限流。</small></div><div class="field"><label for="cfgOutputDir" data-i18n="outputDir">统一保存目录（可选）</label><input id="cfgOutputDir" placeholder="D:\Translations"><small class="muted" data-i18n="outputHint">留空时按各原目录保存；无原路径的上传保存到项目 outputs/LingoPDF。指定目录也会创建 LingoPDF 子文件夹。</small></div><div class="field"><label for="cfgLibreOffice" data-i18n="libreoffice">LibreOffice 程序路径（可选）</label><input id="cfgLibreOffice" placeholder="C:\Program Files\LibreOffice\program\soffice.exe"><small class="muted" data-i18n="libreofficeHint">留空自动检测，用于 Word / PowerPoint 转 PDF。</small></div><div class="settings-note" data-i18n="settingsNote">翻译结果与原文件独立保存。参考文献保护默认开启，可在主界面调整。</div>
+  </div><div class="drawer-foot"><button id="btnResetConfig" class="btn btn-ghost" data-i18n="reset">恢复常用选项</button><button id="btnSaveSettings" class="btn btn-primary" data-i18n="saveSettings">保存设置</button></div></aside><div id="toast" class="toast" role="status" hidden></div><script src="app.js?v=20261004"></script>
+</body></html>

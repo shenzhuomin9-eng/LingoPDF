@@ -10,12 +10,19 @@ import io
 import logging
 import tempfile
 import zipfile
+import json
+import shutil
+import subprocess
+import sys
+import threading
+from typing import Literal
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from .storage import register_sources, resolve_source, save_outputs
 
 from . import config as cfg
 from .jobs import ACCEPT_EXTS, manager
@@ -36,6 +43,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 class NoCacheMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
+        # Browsers on foreign sites must not operate the local file APIs.
+        if request.url.path.startswith('/api'):
+            origin = request.headers.get('origin')
+            if origin and origin != str(request.base_url).rstrip('/'):
+                return JSONResponse({'detail': 'Foreign origin is not allowed'}, status_code=403)
         response = await call_next(request)
         if request.url.path.startswith("/api"):
             return response
@@ -57,17 +69,18 @@ MAX_UPLOAD_MB = 200
 
 
 class ConfigPayload(BaseModel):
-    engine: str | None = None
+    engine: Literal['google', 'openai', 'argos'] | None = None
     base_url: str | None = None
     api_key: str | None = None   # 前端传 "****..." 形式时表示不修改
     model: str | None = None
-    lang_in: str | None = None
-    lang_out: str | None = None
-    thread: int | None = None
+    lang_in: Literal['en', 'zh', 'ja', 'ko', 'fr', 'de', 'ru', 'es'] | None = None
+    lang_out: Literal['en', 'zh', 'ja', 'ko', 'fr', 'de', 'ru', 'es'] | None = None
+    thread: int | None = Field(default=None, ge=1, le=16)
     dual: bool | None = None
+    skip_references: bool | None = None
     output_dir: str | None = None
     libreoffice_path: str | None = None
-    ui_lang: str | None = None
+    ui_lang: Literal['en', 'zh'] | None = None
 
 
 @app.get("/api/config")
@@ -84,6 +97,8 @@ def update_config(payload: ConfigPayload):
         updates.pop("api_key")
     if "engine" in updates and updates["engine"] not in cfg.ENGINES:
         raise HTTPException(400, f"不支持的引擎，可选: {', '.join(cfg.ENGINES)}")
+    if updates.get('output_dir') and not Path(updates['output_dir']).expanduser().is_absolute():
+        raise HTTPException(400, '输出目录需要绝对路径')
     cfg.save_config(updates)
     return cfg.masked(cfg.load_config())
 
@@ -142,27 +157,98 @@ async def argos_install_ep(lang_in: str = "en", lang_out: str = "zh"):
 # ── 翻译任务 ────────────────────────────────────────────
 
 
+class LocalFilesPayload(BaseModel):
+    paths: list[str] = Field(min_length=1, max_length=100)
+
+
+@app.post('/api/local-files')
+async def import_local_files(payload: LocalFilesPayload):
+    try:
+        records = await asyncio.to_thread(register_sources, payload.paths)
+        return {'files': records}
+    except (ValueError, OSError) as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.post('/api/local-files/pick')
+async def pick_local_files():
+    def pick():
+        global _picker_process
+        with _picker_lock:
+            if _picker_process and _picker_process.poll() is None:
+                raise ValueError('文件选择窗口已打开。 / A file picker is already open.')
+            process = subprocess.Popen([getattr(sys, '_base_executable', sys.executable),
+                                        str(Path(__file__).parent / 'file_dialog.py')],
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                       creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
+            _picker_process = process
+        try:
+            stdout, _ = process.communicate(timeout=180)
+            if process.returncode and not stdout:
+                return []  # User canceled through the browser.
+            paths = json.loads(stdout)
+            if process.returncode or not isinstance(paths, list):
+                raise ValueError('无法打开系统文件选择器，请使用原路径导入。 / Use path import instead.')
+            return paths
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+            with _picker_lock:
+                if _picker_process is process:
+                    _picker_process = None
+    try:
+        paths = await asyncio.to_thread(pick)
+        return {'files': await asyncio.to_thread(register_sources, paths) if paths else []}
+    except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
+        raise HTTPException(400, str(exc))
+
+
+_picker_lock = threading.Lock()
+_picker_process = None
+
+
+@app.post('/api/local-files/pick-cancel')
+def cancel_file_picker():
+    with _picker_lock:
+        if _picker_process and _picker_process.poll() is None:
+            _picker_process.terminate()
+    return {'ok': True}
+
+
 @app.post("/api/translate")
-async def create_translation(files: list[UploadFile] = File(...)):
-    if not files:
-        raise HTTPException(400, "未收到文件")
+async def create_translation(files: list[UploadFile] = File(default=[]),
+                             entries: str = Form(''), lang_in: str = Form(''), lang_out: str = Form(''),
+                             dual: bool | None = Form(None), skip_references: bool | None = Form(None)):
 
     saved = cfg.load_config()
+    languages = {'en', 'zh', 'ja', 'ko', 'fr', 'de', 'ru', 'es'}
+    source, target = lang_in or saved['lang_in'], lang_out or saved['lang_out']
+    if source not in languages or target not in languages or source == target:
+        raise HTTPException(400, '请选择不同的有效源语言和目标语言。 / Choose different source and target languages.')
     opts = TranslateOptions(
         engine=saved["engine"],
         base_url=saved["base_url"],
         api_key=saved["api_key"],
         model=saved["model"],
-        lang_in=saved["lang_in"],
-        lang_out=saved["lang_out"],
-        dual=bool(saved.get("dual")),
+        lang_in=source,
+        lang_out=target,
+        dual=dual if dual is not None else bool(saved.get("dual")),
+        skip_references=skip_references if skip_references is not None else bool(saved.get('skip_references', True)),
+        output_dir=saved.get('output_dir', ''),
     )
     if opts.engine == "openai" and (not opts.base_url or not opts.api_key):
         raise HTTPException(400, "当前引擎为 API 翻译，请先在设置中配置 base_url 和 api_key")
 
-    saved_files = []
     import uuid as _uuid
-    import tempfile
+    try:
+        manifest = json.loads(entries) if entries else [{'upload': i} for i in range(len(files))]
+        if not isinstance(manifest, list) or not manifest or len(manifest) > 100:
+            raise ValueError('请选择 1–100 个文件')
+        if not all(isinstance(entry, dict) for entry in manifest):
+            raise ValueError('无效的文件列表')
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, str(exc))
 
     # 先生成 job_id，用它做上传目录（与 create_job 的 id 保持一致）
     job_id = _uuid.uuid4().hex[:12]
@@ -170,18 +256,46 @@ async def create_translation(files: list[UploadFile] = File(...)):
     job_dir.mkdir(parents=True, exist_ok=True)
 
     saved_files = []
-    for f in files:
-        ext = Path(f.filename or "").suffix.lower()
-        if ext not in ACCEPT_EXTS:
-            raise HTTPException(400, f"不支持的文件类型: {f.filename}")
-        data = await f.read()
-        if len(data) > MAX_UPLOAD_MB * 1024 * 1024:
-            raise HTTPException(400, f"文件超过 {MAX_UPLOAD_MB}MB: {f.filename}")
-        dest = job_dir / Path(f.filename).name
-        dest.write_bytes(data)
-        saved_files.append((f.filename, dest, len(data)))
+    sources = []
+    try:
+        for i, entry in enumerate(manifest):
+            folder = job_dir / str(i)
+            folder.mkdir()
+            if 'id' in entry:
+                original = resolve_source(entry['id'])
+                dest = folder / original.name
+                await asyncio.to_thread(shutil.copyfile, original, dest)
+                size = dest.stat().st_size
+                name = original.name
+                sources.append((original, entry['id']))
+            else:
+                index = entry.get('upload')
+                if not isinstance(index, int) or index < 0 or index >= len(files):
+                    raise ValueError('无效的上传文件标识')
+                f = files[index]
+                name = Path((f.filename or '').replace('\\', '/')).name
+                if Path(name).suffix.lower() not in ACCEPT_EXTS:
+                    raise ValueError(f'不支持的文件类型: {name}')
+                dest = folder / name
+                size = 0
+                with dest.open('wb') as writer:
+                    while chunk := await f.read(1024 * 1024):
+                        size += len(chunk)
+                        if size > MAX_UPLOAD_MB * 1024 * 1024:
+                            raise ValueError(f'文件超过 200MB: {name}')
+                        writer.write(chunk)
+                sources.append((None, None))
+            if not size:
+                raise ValueError(f'文件为空: {name}')
+            saved_files.append((name, dest, size))
+    except (ValueError, OSError, TypeError) as exc:
+        shutil.rmtree(job_dir)
+        raise HTTPException(400, str(exc))
+    finally:
+        for f in files:
+            await f.close()
 
-    job = manager.create_job(saved_files, opts, int(saved.get("thread", 4)), job_id=job_id)
+    job = manager.create_job(saved_files, opts, max(1, min(16, int(saved.get("thread", 4)))), job_id=job_id, sources=sources)
     return {"job_id": job.id, "files": len(saved_files)}
 
 
@@ -224,8 +338,15 @@ def download_all(job_id: str):
     zip_path = UPLOAD_DIR / job_id / "results.zip"
     zip_path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        names = set()
         for o in outputs:
-            zf.write(o["path"], arcname=Path(o["path"]).name)
+            name = Path(o['name']).name
+            counter = 0
+            while name in names:
+                counter += 1
+                name = f"{Path(o['name']).stem} ({counter}){Path(o['name']).suffix}"
+            names.add(name)
+            zf.write(o["path"], arcname=name)
     return FileResponse(
         zip_path,
         filename=f"linguapdf_{job_id}.zip",
@@ -233,11 +354,25 @@ def download_all(job_id: str):
     )
 
 
+@app.post('/api/jobs/{job_id}/save-all')
+def save_all(job_id: str):
+    job = manager.get(job_id)
+    if not job:
+        raise HTTPException(404, '任务不存在')
+    if job.status in ('queued', 'running', 'canceling'):
+        raise HTTPException(409, '请等待任务完成后保存')
+    if not any(f.outputs for f in job.files):
+        raise HTTPException(400, '没有可保存的译文')
+    return save_outputs(job)
+
+
 @app.get("/api/jobs/{job_id}/files/{file_index}/{out_index}")
 def download_file(job_id: str, file_index: int, out_index: int):
     job = manager.get(job_id)
     if not job:
         raise HTTPException(404, "任务不存在")
+    if file_index < 0 or out_index < 0:
+        raise HTTPException(404, '文件不存在')
     try:
         jf = job.files[file_index]
         out = jf.outputs[out_index]
@@ -283,7 +418,7 @@ async def detect_lang_endpoint(
             raise HTTPException(400, "Invalid file index")
         
         upload_path = job.files[idx].upload_path
-        detected = detect_pdf_lang(upload_path)
+        detected = await asyncio.to_thread(detect_pdf_lang, upload_path)
         return {
             "detected": detected,
             "detected_name": lang_names.get(detected, detected) if detected else "Unidentified",
@@ -295,12 +430,16 @@ async def detect_lang_endpoint(
             raise HTTPException(400, "Only PDF files are supported")
         
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            content = await file.read()
+            content = await file.read(MAX_UPLOAD_MB * 1024 * 1024 + 1)
+            if len(content) > MAX_UPLOAD_MB * 1024 * 1024:
+                raise HTTPException(400, '文件超过 200MB')
             tmp.write(content)
             tmp_path = Path(tmp.name)
         
-        detected = detect_pdf_lang(tmp_path)
-        tmp_path.unlink(missing_ok=True)
+        try:
+            detected = await asyncio.to_thread(detect_pdf_lang, tmp_path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
         return {
             "detected": detected,
             "detected_name": lang_names.get(detected, detected) if detected else "Unidentified",
@@ -341,6 +480,8 @@ async def shutdown_server():
 
     def _delayed_kill():
         time.sleep(2.0)
+        if any(j.status in ('queued', 'running', 'canceling') for j in manager.all_jobs()):
+            return
         with _lock:
             # shutdown 之后又收到新心跳 = 页面刷新，不关
             if _last_heartbeat > _shutdown_requested_at:
